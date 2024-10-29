@@ -1,0 +1,15 @@
+{
+    "files.associations": {
+        "lm_log.h": "c",
+        "lm_macro.h": "c",
+        "lm_list.h": "c",
+        "lm_string.h": "c",
+        "stdlib.h": "c",
+        "string.h": "c",
+        "lm_mem.h": "c",
+        "lm_error.h": "c",
+        "lm_array.h": "c",
+        "*.bak": "c",
+        "lm_parser.h": "c"
+    }
+}

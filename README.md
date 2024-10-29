@@ -1,2 +1,117 @@
-# lite-manager
-一个C/C++宏管理工具
+## 什么是lite-manager？
+#### lite-manager是一个宏配置和管理工具，自动解决C语言项目中宏依赖的问题。 
+
+1. 你是否讨厌过Cmake的管理十分繁杂，并且效率低下？
+2. 你是否因为处理C语言中众多的宏而持续痛苦？
+3. 你是否一直在寻找一个能够有效处理C语言中文件和宏之间的关系的工具？
+
+使用lite-manager吧，让你的C工程项目变得神清气爽！
+
+## 1. 如何使用它, 步骤如下
+#### 例程1：hello world
+##### 1. 新建一个`hello.c`源文件，内容如下：   
+```c
+#include <stdio.h>
+
+int main(void)
+{
+    printf("hello world, lite-manager\n");
+    return 0;
+}
+```
+##### 2. 新建工程管理文件，默认为lm.cfg，例如，我们现在创建一个lm.cfg文件，然后内容如下：   
+```c
+src-y   += hello.c
+```
+##### 3. 生成`Makefile`文件，执行如下命令：
+```shell
+./lm.exe -g Makefile -j hello
+```
+执行完毕后，会在当前目录生成一个`Makefile`，这个`Makefile`就是我们编译需要使用的文件
+##### 4. 执行`make config && make`即可编译项目
+
+
+## 2. 宏管理
+在config.lm文件中添加宏，如下所示：
+```C
+CONFIG_MACRO_A
+    choice = 0, 1, 2, 3
+
+CONFIG_MACRO_B
+    choice = [0, 100]
+    depend = !CONFIG_MACRO_A
+```
+上面的`CONFIG_MACRO_A`可选择的值为`0, 1, 2, 3`这四个值，`CONFIG_MACRO_B`可选择的值为0~100，这个宏与`CONFIG_MACRO_A`互斥，也就是只有`CONFIG_MACRO_A`关闭时，`CONFIG_MACRO_B`才可被开启。   
+对于上面的宏的值，具体设置需要添加`proj.cfg`文件，该文件类似于Linux中的.config配置文件，这个配置文件将会设置所有宏的值，如果某些值未设置，则会使用`choice`中第一个值作为缺损值。例如下面`proj.cfg`：
+```C
+COMPILER = gcc
+CONFIG_DEBUG = y
+CONFIG_LOG_LEVEL = 0
+CONFIG_MEM_POOL_SIZE = 20
+CONFIG_MACRO_CACHE_SIZE = 100
+CONFIG_TEST = n
+CONFIG_MACRO_xxxx = 25
+```
+## 3. 文件管理
+有时候我们需要利用宏来控制单个文件是否参与编译，例如当`CONFIG_MACRO_A`开启时，编译`macro_a.c`文件，当`CONFIG_MACRO_A`不开启时，不编译`macro_a.c`文件，我们可以在config.lm文件中这样写：
+```C
+src-$(CONFIG_MACRO_A)    += macro_a.c
+```
+
+## 4. 层级管理
+对于复杂的工程，单个目录已经无法满足要求，这个时候，我们需要建立层级目录，例如下面：
+```
+├───build
+├───subdirA
+|   ├───mac_a.c
+|   └───lm.cfg
+├───subdirB
+|   ├───mac_b.c
+|   └───lm.cfg
+└───lm.cfg
+```
+在最顶层的`lm.cfg`的内容如下：
+```
+CONFIG_MACRO_A
+    choice = 0, 1, 2, 3
+
+CONFIG_MACRO_B
+    choice = [0, 100]
+    depend = !CONFIG_MACRO_A
+
+
+include "subdirA/lm.cfg"
+include "subdirB/lm.cfg"
+```
+上面使用include关键字来包含子目录下的`lm.cfg`文件
+
+## 5. 添加编译参数
+执行`lm.exe -d`命令即可查看当前支持的所有参数关键字，如下：
+```
+lite-manager key: [option] += [value] [value] ...
+
+[option]:
+    src:     add c or c++ source files
+    obj:     add c or c++ object files
+    path:    add c or c++ include path
+    define:  add c or c++ global macro define
+    asm:     add asm source files
+    lds:     add build link script file
+    asflag:  add asm build flag
+    cflag:   add c build flag
+    cppflag: add c++ build flag
+    ldflag:  add link flag
+    libpath: add library path
+```
+解释如下：   
+`src`用于添加C/C++源文件，例如`src-y  += abc.c`   
+`obj`用于添加目标文件，如果使用`src`就不需要再使用`obj`，一般建议使用`src`   
+`path`用于添加头文件路径，例如`path += ./`表示将当前的目录添加到编译的头文件查找路径中   
+`define`用于添加全局宏，例如`define += STM32F10X_HD`表示编译的时候会添加全局宏到编译选项中   
+`asm`用于添加汇编源文件，例如`asm += boot.s`   
+`lds`用于添加编译的链接脚本，例如`lds += stm32f10x_64KB_flash.ld`   
+`asflag`用于添加汇编的编译选项  
+`cflag`用于添加C源文件的编译选项  
+`cppflag`用于添加C++文件的编译选项  
+`ldflag`用于添加链接的参数，例如`ldflag += -lnosys -Wl,--cref -Wl,--no-relax -Wl,--gc-sections`   
+`libpath`用于添加库文件的搜索路径  
