@@ -1,10 +1,15 @@
 #include<SDL.h>
 #include<stdio.h>
+#include "config.h"
 
 
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 240
 
+
+#if CONFIG_MAIN
+
+#endif
 
 
 int main(int argc, char* argv[])

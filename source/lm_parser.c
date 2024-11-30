@@ -72,7 +72,6 @@ static lm_macro_head_t config_head;
 static lm_macro_head_t macro_head;
 static const char *config_file = NULL;
 
-
 static char *lm_parser_alloc(void)
 {
     char *mem = (char*)lm_malloc(MAX_PER_LINE_LENGTH);
@@ -413,340 +412,168 @@ static int lm_parser_get_macro_depend_value(lm_macro_t *macro)
 }
 
 
-static lm_parser_err_e lm_parser_prompt_is_src(char *read_line)
+// return 0: disable  1: enable
+static int lm_parser_get_macro_status_by_name(char *macro_name, char *macro_val)
 {
-    char *p = read_line;
-    bool flag = false;
-    if(p[0] == 's' && p[1] == 'r' && p[2] == 'c' && p[3] == '-' && p[4] == 'y') {
-        p += 5;
-        while(*p) {
-            if(*p == '+' && *(p+1) == '=') {
-                return LM_PARSER_OK;
-            }
-            else if(*p == ' ') {
-                p ++;
+    lm_macro_t * macro = lm_macro_search_by_name(&macro_head, macro_name);
+    if(macro != NULL) {
+        if(strcmp(macro->value, "n") == 0) {
+            if(macro_val[0] == 0 || strcmp(macro_val, "n") != 0) {
+                return 0;
             }
             else {
-                return LM_PARSER_SYNTAX; 
+                return 1;
             }
         }
-
-        return LM_PARSER_SYNTAX; 
-    }
-    else if(p[0] == 's' && p[1] == 'r' && p[2] == 'c' && p[3] == '-' && p[4] == '$'
-           && p[5] == '(' ) {
-        p += 6;
-        while(*p) {
-            if(*(++p) == ')') {
-                flag = true;
-                break;
-            }
-        }
-        p++;
-
-        if(!flag) {
-            return LM_PARSER_SYNTAX;
-        }
-
-        while(*p) {
-            if(*p == '+' && *(p+1) == '=') {
-                return LM_PARSER_OK;
-            }
-            else if(*p == ' ') {
-                p ++;
+        else {
+            if(macro_val[0] == 0 || strcmp(macro->value, macro_val) == 0) {
+                return 1;
             }
             else {
-                return LM_PARSER_SYNTAX; 
+                return 0;
             }
         }
-
-        return LM_PARSER_SYNTAX; 
-    }
-
-    return LM_PARSER_NOT_MATCH;
-}
-
-
-static lm_parser_err_e lm_parser_prompt_is_obj(char *read_line)
-{
-    char *p = read_line;
-    bool flag = false;
-    if(p[0] == 'o' && p[1] == 'b' && p[2] == 'j' && p[3] == '-' && p[4] == 'y') {
-        p += 5;
-        while(*p) {
-            if(*p == '+' && *(p+1) == '=') {
-                return LM_PARSER_OK;
-            }
-            else if(*p == ' ') {
-                p ++;
-            }
-            else {
-                return LM_PARSER_SYNTAX; 
-            }
-        }
-
-        return LM_PARSER_SYNTAX; 
-    }
-    else if(p[0] == 'o' && p[1] == 'b' && p[2] == 'j' && p[3] == '-' && p[4] == '$'
-           && p[5] == '(' ) {
-        p += 6;
-        while(*p) {
-            if(*(++p) == ')') {
-                flag = true;
-                break;
-            }
-        }
-        p++;
-
-        if(!flag) {
-            return LM_PARSER_SYNTAX;
-        }
-
-        while(*p) {
-            if(*p == '+' && *(p+1) == '=') {
-                return LM_PARSER_OK;
-            }
-            else if(*p == ' ') {
-                p ++;
-            }
-            else {
-                return LM_PARSER_SYNTAX; 
-            }
-        }
-
-        return LM_PARSER_SYNTAX; 
-    }
-
-    return LM_PARSER_NOT_MATCH;
-}
-
-
-static lm_parser_err_e lm_parser_prompt_is_src_or_obj(char *read_line)
-{
-    if(lm_parser_prompt_is_src(read_line) != LM_PARSER_OK) {
-        return lm_parser_prompt_is_obj(read_line);
     }
     else {
-        return LM_PARSER_OK;
+        return 0;
     }
 }
 
 
-static lm_parser_err_e lm_parser_prompt_is_key_string(char *key_str, char *read_line)
+// return 0: disable  1: enable  -1: syntax error
+static int lm_parser_get_keystring_depend_value(char* keystring)
 {
-    char *p = read_line;
-    int key_len = strlen(key_str);
+    char macro_name[512] = {0};
+    char str_value[512] = {0};
+    char *p = keystring;
+    int i = 0;
+    int status = 0;
+    int ret = -1, flag = 0;
 
-    for(int i = 0; i < key_len; i ++) {
-        if(p[i] == key_str[i]) {
-            continue;
-        }
-        else {
-            return LM_PARSER_NOT_MATCH;
-        }
-    }
-
-    p += (key_len);
-    
     while(*p) {
-        if(*p == '+' && *(p+1) == '=') {
-            return LM_PARSER_OK;
-        }
-        else if(*p == ' ') {
-            p ++;
-        }
-        else {
-            return LM_PARSER_SYNTAX; 
-        }
-    }
-
-    return LM_PARSER_SYNTAX; 
-}
-
-
-static void lm_parser_key_list_add_with_path(lm_array_t *list, const char *path, char *readline)
-{
-    char file_name[MAX_FILE_PATH];
-    char *p = readline;
-
-    while(*p++) {
-        if(*p == '+' && *(p+1) == '=') {
-            p += 2;
-            break;
-        }
-    }
-
-    int num = lm_str_num_str_space(p);
-    char *pick = NULL;
-
-    for(int i = 0; i < num; i++) {
-        pick = lm_str_pick_str(p, i);
-        if(pick && list) {
-            if(strcmp(pick, ".") == 0 || strcmp(pick, "./") == 0) {
-                if(strcmp(path, ".") != 0 && strcmp(path, "./") == 0) {
-                    sprintf(file_name, "%s/%s", path, pick);
-                    lm_array_add(list, file_name);
-                    lm_free(pick);
+        switch(status) {
+            case 0:
+                if(*p == ' ') {
+                    break;
                 }
-            }
-            else {
-                if(strcmp(path, ".") == 0)
-                    sprintf(file_name, "%s", pick);
-                else
-                    sprintf(file_name, "%s/%s", path, pick);
+                else {
+                    status = 1;
+                }
 
-                lm_array_add(list, file_name);
-                lm_free(pick);
-            }
-        }
-    }
-}
-
-
-void lm_parser_key_list_add_no_path(lm_array_t *list, char *readline)
-{
-    char *str = lm_parser_alloc();
-    char *p = readline;
-
-    while(*p++) {
-        if(*p == '+' && *(p+1) == '=') {
-            p += 2;
-            break;
-        }
-    }
-
-    int num = lm_str_num_str_space(p);
-    char *pick = NULL;
-
-    for(int i = 0; i < num; i++) {
-        pick = lm_str_pick_str(p, i);
-        if(pick && list) {
-            sprintf(str, "%s", pick);
-            lm_array_add(list, str);
-            lm_free(pick);
-        }
-    }
-
-    lm_free(str);
-}
-
-
-static void lm_parser_key_list_add_raw_value(lm_array_t *list, char *readline)
-{
-    char *str = lm_parser_alloc();
-    char *p = readline;
-
-    while(*p++) {
-        if(*p == '+' && *(p+1) == '=') {
-            p += 2;
-            break;
-        }
-    }
-
-    lm_parser_skip_space(&p);
-
-    if(list) {
-        sprintf(str, "%s", p);
-        lm_array_add(list, str);
-    }
-
-    lm_free(str);
-}
-
-
-static void lm_parser_key_list_add_with_path_and_prefix(lm_array_t *list, const char *path, char *prefix, char *readline)
-{
-    char *str = lm_parser_alloc();
-    char *p = readline;
-
-    while(*p++) {
-        if(*p == '+' && *(p+1) == '=') {
-            p += 2;
-            break;
-        }
-    }
-
-    int num = lm_str_num_str_space(p);
-    char *pick = NULL;
-
-    for(int i = 0; i < num; i++) {
-        pick = lm_str_pick_str(p, i);
-        if(pick && list) {
-            if(strcmp(pick, ".") == 0 || strcmp(pick, "./") == 0) {
-                if(strcmp(path, ".") != 0 && strcmp(path, "./") != 0)
-                    sprintf(str, "%s%s", prefix, path);
-                else
-                    sprintf(str, "%s.", prefix);
-            }
-            else {
-                if(strcmp(path, ".") == 0)
-                    sprintf(str, "%s%s", prefix, pick);
-                else
-                    sprintf(str, "%s%s/%s", prefix, path, pick);
-            }
+            // match macro name
+            case 1:
+                if(*p != ' ' && *p != '=') {
+                    macro_name[i++] = *p;
+                    flag = 1;
+                    break;
+                }
+                else {
+                    status = 2;
+                    macro_name[i] = '\0';
+                    i = 0;
+                }
             
-            lm_array_add(list, str);
-            lm_free(pick);
+            // filter space
+            case 2:
+                if(*p == ' ') {
+                    break;
+                }
+                else {
+                    status = 3;
+                }
+
+            // match '=' 
+            case 3:
+                if(*p == '=') {
+                    status = 4;
+                    flag = 0;
+                    break;
+                }
+                else {
+                    return -1; //error
+                }
+
+            // filter space
+            case 4:
+                if(*p == ' ') {
+                    break;
+                }
+                else {
+                    status = 5;
+                }
+
+            // match value
+            case 5:
+                if(*p != ' ') {
+                    str_value[i++] = *p;
+                    str_value[i] = '\0';
+                    flag = 1;
+                    break;
+                }
+                else {
+                    status = 6;
+                }
+
+            case 6:
+                if(*p != ' ') {
+                    return -1;
+                }
+                else {
+                    break;
+                }
         }
+        p++;
     }
 
-    lm_free(str);
+    if(flag == 0 || macro_name[0] == 0) {
+        return -1; //syntax error
+    }
+
+    return lm_parser_get_macro_status_by_name(macro_name, str_value);
 }
 
 
-static void lm_parser_key_list_add_no_path_with_prefix(lm_array_t *list, char *prefix, char *readline)
-{
-    char *str = lm_parser_alloc();
-    char *p = readline;
-
-    while(*p++) {
-        if(*p == '+' && *(p+1) == '=') {
-            p += 2;
-            break;
-        }
-    }
-
-    int num = lm_str_num_str_space(p);
-    char *pick = NULL;
-
-    for(int i = 0; i < num; i++) {
-        pick = lm_str_pick_str(p, i);
-        if(pick && list) {
-            sprintf(str, "%s%s", prefix, pick);
-            lm_array_add(list, str);
-            lm_free(pick);
-        }
-    }
-
-    lm_free(str);
-}
-
-
-static void lm_parser_src_obj_add_wildcard(const char *wildcard, const char *path, lm_array_t *array)
+static void lm_parser_src_add_wildcard(const char *wildcard, const char *path, lm_array_t *array)
 {
     DIR *dir;
     struct dirent *entry;
-    char file_name[MAX_FILE_PATH];
-    char file_extension[3];
+    char file_name[MAX_FILE_PATH] = {0};
+    char wildcard_path[MAX_FILE_PATH] = {0};
+    char abs_path[MAX_FILE_PATH] = {0};
 
-    dir = opendir(path);
-    if (dir == NULL) {
-        LM_LOG_ERROR("opening %s directory", path);
+    char *wildcard_dir = strrchr(wildcard, '/');
+    if(wildcard_dir) {
+        strncpy(wildcard_path, wildcard, strlen(wildcard) - strlen(wildcard_dir));
+
+        if(strcmp(path, ".") == 0) {
+            sprintf(abs_path, "%s", wildcard_path);
+        }
+        else {
+            sprintf(abs_path, "%s/%s", path, wildcard_path);
+        }
+    }
+    else {
+        strcpy(abs_path, path);
     }
 
-    strncpy(file_extension, wildcard + 1, 2);
+    dir = opendir(abs_path);
+    if (dir == NULL) {
+        LM_LOG_ERROR("%s: No such directory", abs_path);
+        lm_mem_destroy();
+        LM_LOG_ERROR("parser failed, exiting");
+    }
 
     while ((entry = readdir(dir)) != NULL) {
         size_t len = strlen(entry->d_name);
 
         if (len >= 2 && strcmp(entry->d_name + len - 2, ".c") == 0) {
-            if(strcmp(path, ".") == 0) {
-                sprintf(file_name, "%.*s%s", (int)(len - 2), entry->d_name, file_extension);
+            if(strcmp(abs_path, ".") == 0) {
+                sprintf(file_name, "%s", entry->d_name);
             }
             else {
-                sprintf(file_name, "%s/%.*s%s", path, (int)(len - 2), entry->d_name, file_extension);
+                sprintf(file_name, "%s/%s", abs_path, entry->d_name);
             }
-            
+
             lm_array_add(array, file_name);
         }
     }
@@ -755,76 +582,276 @@ static void lm_parser_src_obj_add_wildcard(const char *wildcard, const char *pat
 }
 
 
-static void lm_parser_src_obj_add(lm_macro_head_t *head, const char *path, char *readline)
+static lm_parser_err_e lm_parser_prompt_src_add_list(const char *path, char *read_line)
 {
-    lm_array_t *array = NULL;
     char macro_name[MAX_MACRO_NAME];
     char file_name[MAX_FILE_PATH];
-    char *p = readline;
-    int i = 0;
+    lm_array_t *array = NULL;
+    char *p = read_line;
+    int status = 0, i = 0;
     bool flag = false;
 
-    if(lm_parser_prompt_is_src(readline) == LM_PARSER_OK) {
-        array = &lm_parser_list.src_list;
-    }
-    else if(lm_parser_prompt_is_obj(readline) == LM_PARSER_OK) {
-        array = &lm_parser_list.obj_list;
-    }
+    while(*p) {
+        switch(status) {
+        // match if src or obj or others
+        case 0:
+            if(p[0] == 'S' && p[1] == 'R' && p[2] == 'C') {
+                array = &lm_parser_list.src_list;
+            }
+            else {
+                return LM_PARSER_NOT_MATCH;
+            }
 
-    while(*p++) {
-        if(*p == 'y') {
-            flag = true;
-        }
-        else if(*p == '$' && *(p+1) == '(') {
-            p += 1;
-            while(*p++) {
-                if(*p == ')') {
-                    macro_name[i++] = '\0';
+            p += 3;
+
+            if(*p != '-') {
+                status = 2;
+                break;
+            }
+            else {
+                status = 1;
+                break;
+            }
+
+        // check src or obj is enable ?
+        case 1:
+            if(*p == '$' && *(p+1) == '(') {
+                p += 1;
+                while(*p++) {
+                    if(*p == ')') {
+                        macro_name[i++] = '\0';
+                        flag = true;
+                        break;
+                    }
+                    macro_name[i++] = *p;
+                }
+            }
+            else {
+                return LM_PARSER_SYNTAX;
+            }
+
+            if(!flag) {
+                return LM_PARSER_SYNTAX;
+            }
+
+            int depend_val = lm_parser_get_keystring_depend_value(macro_name);
+            if(depend_val == 0) {
+                return LM_PARSER_OK;
+            }
+            else if(depend_val == 1) {
+                status = 2;
+                break;
+            }
+            else if(depend_val < 0) {
+                return LM_PARSER_SYNTAX;
+            }
+
+        case 2:
+            while(*p) {
+                if(*p == '+' && *(p+1) == '=') {
+                    p += 2;
                     break;
                 }
-                macro_name[i++] = *p;
+                else if(*p == ' ') {
+                    p ++;
+                }
+                else {
+                    return LM_PARSER_SYNTAX; 
+                }
             }
-        }
 
-        if(*p == '+' && *(p+1) == '=') {
-            p += 2;
-            break;
+            int num = lm_str_num_str_space(p);
+            char *pick = NULL;
+
+            for(int i = 0; i < num; i++) {
+                pick = lm_str_pick_str(p, i);
+
+                if(pick && array) {
+                    if((strcmp(pick, "*.c") == 0)|| strcmp(pick + strlen(pick) - 3, "*.c") == 0) {
+                        lm_parser_src_add_wildcard(pick, path, array);
+                        lm_free(pick);
+                    }
+                    else {
+                        if(strcmp(path, ".") == 0)
+                            sprintf(file_name, "%s", pick);
+                        else
+                            sprintf(file_name, "%s/%s", path, pick);
+
+                        lm_array_add(array, file_name);
+                        lm_free(pick);
+                    }
+                }
+            }
+
+            return LM_PARSER_OK;
         }
+        p++;
     }
 
-    if(!flag) {
-        lm_macro_t * macro = lm_macro_search_by_name(head, macro_name);
-        if(macro != NULL) {
-            if(strcmp(macro->value, "n") == 0) {
-                return;
+    return LM_PARSER_NOT_MATCH;
+}
+
+
+static void lm_parser_add_list_raw(lm_array_t *list, char *flag)
+{
+    char str[MAX_FILE_PATH];
+
+    if(list) {
+        sprintf(str, "%s", flag);
+        lm_array_add(list, str);
+    }
+}
+
+
+static void lm_parser_add_list_path_and_prefix(lm_array_t *list, const char *path, char *prefix, char *flag)
+{
+    char str[MAX_FILE_PATH];
+
+    if(path && prefix) {
+        if(strcmp(flag, ".") == 0 || strcmp(flag, "./") == 0) {
+            if(strcmp(path, ".") != 0 && strcmp(path, "./") != 0)
+                sprintf(str, "%s%s", prefix, path);
+            else
+                sprintf(str, "%s.", prefix);
+        }
+        else {
+            if(strcmp(path, ".") == 0)
+                sprintf(str, "%s%s", prefix, flag);
+            else
+                sprintf(str, "%s%s/%s", prefix, path, flag);
+        }
+        
+        lm_array_add(list, str);
+    }
+    else if(path) {
+        if(strcmp(flag, ".") == 0 || strcmp(flag, "./") == 0) {
+            if(strcmp(path, ".") != 0 && strcmp(path, "./") == 0) {
+                sprintf(str, "%s/%s", path, flag);
+                lm_array_add(list, str);
             }
         }
         else {
-            return;
+            if(strcmp(path, ".") == 0)
+                sprintf(str, "%s", flag);
+            else
+                sprintf(str, "%s/%s", path, flag);
+
+            lm_array_add(list, str);
         }
     }
+    else if(prefix) {
+        sprintf(str, "%s%s", prefix, flag);
+        lm_array_add(list, str);
+    }
+    else {
+        sprintf(str, "%s", flag);
+        lm_array_add(list, str);
+    }
+}
 
-    int num = lm_str_num_str_space(p);
-    char *pick = NULL;
 
-    for(int i = 0; i < num; i++) {
-        pick = lm_str_pick_str(p, i);
-        if(pick && array) {
-            if((strcmp(pick, "*.c") == 0) || (strcmp(pick, "*.o") == 0)) {
-                lm_parser_src_obj_add_wildcard(pick, path, array);
-                lm_free(pick);
+static lm_parser_err_e lm_parser_key_string_add_list(lm_array_t *list, const char *path, char *prefix, bool rawflag, char *key_str, char *readline)
+{
+    char macro_name[MAX_MACRO_NAME];
+    char *p = readline;
+    int index = 0;
+    int status = 0;
+    int key_len = strlen(key_str);
+    bool flag = false;
+
+    while(*p) {
+        switch(status) {
+        //match key string
+        case 0:
+            for(int i = 0; i < key_len; i ++) {
+                if(p[i] == key_str[i]) {
+                    continue;
+                }
+                else {
+                    return LM_PARSER_NOT_MATCH;
+                }
+            }
+            p += key_len;
+
+            if(*p != '-') {
+                status = 2;
+                break;
             }
             else {
-                if(strcmp(path, ".") == 0)
-                    sprintf(file_name, "%s", pick);
-                else
-                    sprintf(file_name, "%s/%s", path, pick);
-
-                lm_array_add(array, file_name);
-                lm_free(pick);
+                status = 1;
+                break;
             }
+
+        //check key is enbale
+        case 1:
+            if(*p == '$' && *(p+1) == '(') {
+                p += 1;
+                while(*p++) {
+                    if(*p == ')') {
+                        macro_name[index++] = '\0';
+                        flag = true;
+                        break;
+                    }
+                    macro_name[index++] = *p;
+                }
+
+                if(!flag) {
+                    return LM_PARSER_SYNTAX;
+                }
+
+                int depend_val = lm_parser_get_keystring_depend_value(macro_name);
+                if(depend_val == 0) {
+                    return LM_PARSER_OK;
+                }
+                else if(depend_val == 1) {
+                    status = 2;
+                    break;
+                }
+                else if(depend_val < 0) {
+                    return LM_PARSER_SYNTAX;
+                }
+            }
+            else {
+                return LM_PARSER_SYNTAX;
+            }
+        
+        //add key value into list
+        case 2:
+            while(*p) {
+                if(*p == '+' && *(p+1) == '=') {
+                    p += 2;
+                    break;
+                }
+                else if(*p == ' ') {
+                    p ++;
+                }
+                else {
+                    return LM_PARSER_SYNTAX; 
+                }
+            }
+
+            if(rawflag) {
+                lm_parser_add_list_raw(list, p);
+                return LM_PARSER_OK;
+            }
+
+            int num = lm_str_num_str_space(p);
+            char *pick = NULL;
+
+            for(int i = 0; i < num; i++) {
+                pick = lm_str_pick_str(p, i);
+                if(pick && list) {
+                    lm_parser_add_list_path_and_prefix(list, path, prefix, pick);
+
+                    lm_free(pick);
+                }
+            }
+            return LM_PARSER_OK;
         }
+        p ++;
     }
+
+    return LM_PARSER_SYNTAX;
 }
 
 
@@ -922,16 +949,78 @@ static char *lm_parser_prompt_process_var(char *read_line)
 
 static char *lm_parser_prompt_is_include(char *read_line)
 {
-    char *tmp = NULL;
+    char macro_depend[MAX_MACRO_NAME];
+    char *p = read_line;
+    int status = 0, i = 0;
+    bool flag = false;
 
-    if (read_line[0] != ' ') {
-        if (lm_str_num_str_space(read_line) == 2) {
-            if (lm_str_find_str_space(read_line, "include") == 0) {
-                tmp = lm_str_get_quote(read_line);
-                return lm_parser_prompt_process_var(tmp);
+    while(*p) {
+        switch(status) {
+        // match if is include
+        case 0:
+            if(p[0] == 'i' && p[1] == 'n' && p[2] == 'c' && p[3] == 'l' && p[4] == 'u' && p[5] == 'd' && p[6] == 'e') {
+
+                if(lm_str_num_str_space(p) > 5) {
+                    return "syntax_error";
+                }
+                p += 7;
+
+                if(*p != '-') {
+                    status = 2;
+                    break;
+                }
+                else {
+                    status = 1;
+                    break;
+                }
             }
+            else {
+                return NULL;
+            }
+
+        // check include is enable
+        case 1:
+            if(*p == '$' && *(p+1) == '(') {
+                p += 1;
+                while(*p++) {
+                    if(*p == ')') {
+                        macro_depend[i++] = '\0';
+                        flag = true;
+                        break;
+                    }
+                    macro_depend[i++] = *p;
+                }
+            }
+            else {
+                return "syntax_error";
+            }
+            
+            if(!flag) {
+                return "syntax_error";
+            }
+
+            int depend_val = lm_parser_get_keystring_depend_value(macro_depend);
+            if(depend_val == 0) {
+                return "lm_ok";
+            }
+            else if(depend_val == 1) {
+                status = 2;
+                break;
+            }
+            else if(depend_val < 0) {
+                return "syntax_error";
+            }
+            
+        case 2:
+            p = lm_str_get_quote(read_line);
+            if(p == NULL) {
+                return "syntax_error";
+            }
+            return lm_parser_prompt_process_var(p);
         }
+        p++;
     }
+
     return NULL;
 }
 
@@ -1154,96 +1243,56 @@ static lm_parser_err_e lm_parser_macro_set_value(lm_macro_t *macro)
 }
 
 
-static lm_parser_err_e lm_parser_lm_file_key_string(lm_macro_head_t *head, const char *base_path, char *read_line)
+static lm_parser_err_e lm_parser_lm_file_key_string(const char *base_path, char *read_line)
 {
-    lm_parser_err_e prompt_err = lm_parser_prompt_is_src_or_obj(read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_src_obj_add(head, base_path, read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    lm_parser_err_e prompt_err = lm_parser_prompt_src_add_list(base_path, read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("path", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_with_path_and_prefix(&lm_parser_list.path_list, base_path, "-I", read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.path_list, base_path, "-I", false, "PATH", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("define", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_no_path_with_prefix(&lm_parser_list.define_list, "-D", read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.define_list, NULL, "-D", false, "DEFINE", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("asm", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_with_path(&lm_parser_list.asm_list, base_path, read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.asm_list, base_path, NULL, false, "ASM", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("lds", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_with_path(&lm_parser_list.lds_list, base_path, read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.lds_list, base_path, NULL, false, "LDS", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("asflag", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_raw_value(&lm_parser_list.asflag_list, read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.asflag_list, NULL, NULL, true, "ASFLAG", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("cflag", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_raw_value(&lm_parser_list.cflag_list, read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.cflag_list, NULL, NULL, true, "CFLAG", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("cppflag", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_raw_value(&lm_parser_list.cppflag_list, read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.cppflag_list, NULL, NULL, true, "CPPFLAG", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("ldflag", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_raw_value(&lm_parser_list.ldflag_list, read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.ldflag_list, NULL, NULL, true, "LDFLAG", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
-    prompt_err = lm_parser_prompt_is_key_string("libpath", read_line);
-    if(prompt_err == LM_PARSER_OK) {
-        lm_parser_key_list_add_with_path_and_prefix(&lm_parser_list.libpath_list, base_path, "-L", read_line);
-        return LM_PARSER_OK;
-    }
-    else if(prompt_err == LM_PARSER_SYNTAX) {
-        return LM_PARSER_SYNTAX;
+    prompt_err = lm_parser_key_string_add_list(&lm_parser_list.libpath_list, base_path, "-L", false, "LIBPATH", read_line);
+    if(prompt_err != LM_PARSER_NOT_MATCH) {
+        return prompt_err;
     }
 
     return LM_PARSER_NOT_MATCH;
@@ -1376,8 +1425,15 @@ int lm_parser_lm_file(const char *base_path, const char *path)
         }
 
         char *sub_file = lm_parser_prompt_is_include(read_line);
-        if(sub_file != NULL) {
+        if(sub_file != NULL && strcmp(sub_file, "lm_ok") == 0) {
+            continue;
+        }
 
+        if(sub_file != NULL && strcmp(sub_file, "syntax_error") == 0) {
+            goto syntax_err;
+        }
+
+        if(sub_file != NULL) {
             uint64_t file_pos = ftell(file_p);
             fclose(file_p);
 
@@ -1395,7 +1451,7 @@ int lm_parser_lm_file(const char *base_path, const char *path)
 
         if(macro != NULL) {
             if(lm_parser_macro_set_prompt(macro, read_line) == LM_ERR) {
-                LM_LOG_ERROR("file: %s, lines: %d, invalid syntax", path, line_count);
+                LM_LOG_ERROR("file: %s, lines: %d, invalid syntax", full_path, line_count);
                 goto exit;
             }
 
@@ -1415,7 +1471,7 @@ int lm_parser_lm_file(const char *base_path, const char *path)
             continue;
         }
 
-        lm_parser_err_e key_ret = lm_parser_lm_file_key_string(&macro_head, new_base_path, read_line);
+        lm_parser_err_e key_ret = lm_parser_lm_file_key_string(new_base_path, read_line);
         if(key_ret == LM_PARSER_OK) {
             macro = NULL;
             continue;
@@ -1435,7 +1491,7 @@ int lm_parser_lm_file(const char *base_path, const char *path)
 
     if(lm_parser_macro_set_value(macro) == LM_PARSER_INVALID_VALUE) {
         char *value_p = lm_parser_get_macro_value(&config_head, macro);
-        LM_LOG_ERROR("%s: %s value is invalid", macro->name, value_p);
+        LM_LOG_ERROR("file: %s, %s: %s value is invalid", config_file, macro->name, value_p);
         goto exit;
     }
 
@@ -1446,13 +1502,13 @@ int lm_parser_lm_file(const char *base_path, const char *path)
     return LM_OK;
 
 syntax_err:
-    LM_LOG_ERROR("file: %s, lines: %d, invalid syntax", path, line_count);
+    LM_LOG_ERROR("file: %s, lines: %d, invalid syntax", full_path, line_count);
     fclose(file_p); // close file
     lm_free(read_line);
     return LM_ERR;
 
 macro_err:
-    LM_LOG_ERROR("file: %s, lines: %d, missing 'choice' attribute", path, line_count);
+    LM_LOG_ERROR("file: %s, lines: %d, missing 'choice' attribute", full_path, line_count);
     fclose(file_p); // close file
     lm_free(read_line);
     return LM_ERR;
@@ -1524,7 +1580,7 @@ int lm_parser_gen_header_file(const char* file_path)
 }
 
 
-int lm_parser_gen_mkconf_file(const char* file_path)
+int lm_parser_gen_lmmk_file(const char* file_path)
 {
     lm_list_node_t *node = lm_list_next_node(&macro_head.node);
     lm_macro_t *macro = NULL;
@@ -1571,7 +1627,8 @@ int lm_parser_gen_mkconf_file(const char* file_path)
                 fprintf(file, "%s := ", name);
             }
 
-            lm_array_print(file, list);
+            lm_array_print_with_max_len(file, list, 15);
+            fprintf(file, "\n");
         }
 
         list ++;
@@ -1650,28 +1707,36 @@ void lm_parser_print_all_macro_value(void)
     lm_list_node_t *node;
     lm_macro_t *macro = NULL;
 
-    lm_list_for_each(node, node_head) {
 
-        macro = container_of(node, lm_macro_t, node);
-        if(macro == NULL) {
-            continue;
-        }
+    if(macro_head.count) {
+        lm_list_for_each(node, node_head) {
 
-        if(strcmp(macro->value, "n") == 0) {
-            printf("\x1b[32m┃\x1b[0m");
-            printf("⛔ %-43s%-55s", macro->name, " ");
-            printf("\x1b[32m┃\x1b[0m\n");
+            macro = container_of(node, lm_macro_t, node);
+            if(macro == NULL) {
+                continue;
+            }
+
+            if(strcmp(macro->value, "n") == 0) {
+                printf("\x1b[32m┃\x1b[0m");
+                printf("⛔ %-43s%-55s", macro->name, " ");
+                printf("\x1b[32m┃\x1b[0m\n");
+            }
+            else if(strcmp(macro->value, "'n'") == 0) {
+                printf("\x1b[32m┃\x1b[0m");
+                printf("✅ %-43s%-55s", macro->name, "n");
+                printf("\x1b[32m┃\x1b[0m\n");
+            }
+            else {
+                printf("\x1b[32m┃\x1b[0m");
+                printf("✅ %-43s%-55s", macro->name, macro->value);
+                printf("\x1b[32m┃\x1b[0m\n");
+            }
         }
-        else if(strcmp(macro->value, "'n'") == 0) {
-            printf("\x1b[32m┃\x1b[0m");
-            printf("✅ %-43s%-55s", macro->name, "n");
-            printf("\x1b[32m┃\x1b[0m\n");
-        }
-        else {
-            printf("\x1b[32m┃\x1b[0m");
-            printf("✅ %-43s%-55s", macro->name, macro->value);
-            printf("\x1b[32m┃\x1b[0m\n");
-        }
+    }
+    else {
+        printf("\x1b[32m┃\x1b[0m");
+        printf("                                       ⚠️  No macro configured                                        ");
+        printf("\x1b[32m┃\x1b[0m\n");
     }
 
     printf("\x1b[32m"); //green color

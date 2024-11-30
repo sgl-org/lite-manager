@@ -25,7 +25,7 @@
 #define __LM_LOG_H__
 
 
-#include <config.h>
+#include "config.h"
 
 
 #ifdef __cplusplus

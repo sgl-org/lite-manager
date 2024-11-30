@@ -51,7 +51,7 @@ extern "C" {
 int lm_array_add(lm_array_t *array, char *str);
 int lm_array_delete(lm_array_t *array);
 void lm_array_print(FILE* output, lm_array_t *array);
-
+void lm_array_print_with_max_len(FILE* output, lm_array_t *array, int max_len);
 
 #ifdef __cplusplus
 } /*extern "C"*/

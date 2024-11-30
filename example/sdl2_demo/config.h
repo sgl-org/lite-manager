@@ -7,6 +7,8 @@
 #define  __CONFIG_H__
 
 
+#define    CONFIG_TEST                        1
+#define    CONFIG_MAIN                        1
 
 
 #endif  //!__CONFIG_H__

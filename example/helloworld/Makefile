@@ -3,12 +3,17 @@ BUILD_DIR := build
 
 
 # include configuration file for makefile
+.PHONY: check_lmmk
 ifneq ($(wildcard .lm.mk),)
 -include .lm.mk
+else
+check_lmmk:
+	@echo "Please run 'make config'"
 endif
 
 
 # toolchain
+CC_PREFIX ?= 
 CC = $(CC_PREFIX)gcc
 AS = $(CC_PREFIX)gcc -x assembler-with-cpp
 CP = $(CC_PREFIX)objcopy

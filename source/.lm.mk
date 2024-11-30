@@ -12,5 +12,8 @@ CONFIG_MACRO_xxxx = n
 
 # Variables provided for Makefile
 C_SOURCE := lm_macro.c lm_mem.c lm_parser.c lm_string.c lm_array.c heap_tlsf.c lm_log.c main.c
+
 C_PATH := -I.
-C_FLAG := -O2 -std=c99
+
+C_FLAG :=  -O2 -std=c99
+

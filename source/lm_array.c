@@ -83,7 +83,38 @@ void lm_array_print(FILE* output, lm_array_t *array)
         array_node = container_of(node, lm_array_node_t, node);
 
         if(array_node != LM_ERR_PTR) {
+            fprintf(output, "[%s], ", array_node->string);
+        }
+
+        node = lm_list_next_node(node);
+    }
+    
+    array_node = container_of(node, lm_array_node_t, node);
+    if(array_node != LM_ERR_PTR) {
+        fprintf(output, "[%s]", array_node->string);
+    }
+}
+
+
+
+void lm_array_print_with_max_len(FILE* output, lm_array_t *array, int max_len)
+{
+    lm_list_node_t *node = lm_list_next_node(&array->head);
+    lm_array_node_t *array_node = NULL;
+    int line_count = 0;
+
+    for(int i = 0; i < array->count - 1; i++) {
+        
+        array_node = container_of(node, lm_array_node_t, node);
+
+        if(array_node != LM_ERR_PTR) {
             fprintf(output, "%s ", array_node->string);
+        }
+
+        line_count ++;
+
+        if(line_count == max_len) {
+            fprintf(output, "\\\n            ");
         }
 
         node = lm_list_next_node(node);

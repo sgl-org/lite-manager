@@ -65,7 +65,7 @@ void lm_parser_print_define_list(void);
 void lm_parser_print_option_list(void);
 void lm_parser_print_src_list(void);
 int lm_parser_gen_header_file(const char* file_path);
-int lm_parser_gen_mkconf_file(const char* file_path);
+int lm_parser_gen_lmmk_file(const char* file_path);
 void lm_parser_print_all_macro_value(void);
 void lm_parser_print_config_list(void);
 bool lm_parser_lds_is_empty(void);

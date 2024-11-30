@@ -28,10 +28,10 @@
 #include "lm_string.h"
 #include "lm_mem.h"
 #include <getopt.h>
-#include <config.h>
+#include "config.h"
 
 
-#define    VERSION           "0.2024120"
+#define    VERSION           "0.2024600"
 
 
 static const char *mkfile = NULL;
@@ -41,26 +41,38 @@ static const char *config_file = "proj.cfg";
 static const char *lm_file = "lm.cfg";
 static const char *header_file = "config.h";
 static const char *confmk_file = ".lm.mk";
-static const char *info_file = "info.log";
+static const char *gcc_prefix="";
 static int mem_size = CONFIG_MEM_POOL_SIZE;
 static bool blind = false;
 
 
 static void show_key_usage(void)
 {
-    printf("lite-manager key: [option] += [value] [value] ...\n");
+    printf("lite-manager key: [option] | [option]-$(macro_xxx) += [value] [value] ...\n");
     printf("\n[option]:\n");
-    printf("    src:     add c or c++ source files\n");
-    printf("    obj:     add c or c++ object files\n");
-    printf("    path:    add c or c++ include path\n");
-    printf("    define:  add c or c++ global macro define\n");
-    printf("    asm:     add asm source files\n");
-    printf("    lds:     add build link script file\n");
-    printf("    asflag:  add asm build flag\n");
-    printf("    cflag:   add c build flag\n");
-    printf("    cppflag: add c++ build flag\n");
-    printf("    ldflag:  add link flag\n");
-    printf("    libpath: add library path\n");
+    printf("    SRC:                   add c or c++ source files\n");
+    printf("    SRC-$(CONFIG_XXX):     add c or c++ source files dependent on CONFIG_XXX\n");
+    printf("    PATH:                  add c or c++ include path\n");
+    printf("    PATH-$(CONFIG_XXX):    add c or c++ include path dependent on CONFIG_XXX\n");
+    printf("    DEFINE:                add c or c++ global macro define\n");
+    printf("    DEFINE-$(CONFIG_XXX):  add c or c++ global macro define dependent on CONFIG_XXX\n");
+    printf("    ASM:                   add asm source files\n");
+    printf("    ASM-$(CONFIG_XXX):     add asm source files dependent on CONFIG_XXX\n");
+    printf("    LDS:                   add build link script file\n");
+    printf("    LDS-$(CONFIG_XXX):     add build link script file dependent on CONFIG_XXX\n");
+    printf("    ASFLAG:                add asm build flag\n");
+    printf("    ASFLAG-$(CONFIG_XXX):  add asm build flag dependent on CONFIG_XXX\n");
+    printf("    CFLAG:                 add c build flag\n");
+    printf("    CFLAG-$(CONFIG_XXX):   add c build flag dependent on CONFIG_XXX\n");
+    printf("    CPPFLAG:               add c++ build flag\n");
+    printf("    CPPFLAG-$(CONFIG_XXX): add c++ build flag dependent on CONFIG_XXX\n");
+    printf("    LDFLAG:                add link flag\n");
+    printf("    LDFLAG-$(CONFIG_XXX):  add link flag dependent on CONFIG_XXX\n");
+    printf("    LIBPATH:               add library path\n");
+    printf("    LIBPATH-$(CONFIG_XXX): add library path dependent on CONFIG_XXX\n");
+
+    printf("    include:               include sub lm.cfg\n");
+    printf("    include-$(CONFIG_XXX): include sub lm.cfg dependent on CONFIG_XXX\n");
 }
 
 
@@ -75,13 +87,13 @@ static void show_help(char *app_name)
     printf("  -f, --input lmfile                  Input lite manager file(toplayer lm.cfg), default: %s\n", lm_file);
     printf("  -o, --output header                 Output header file output path, default: %s\n", header_file);
     printf("  -k, --output config.mk              Output config makefile, default: %s\n", confmk_file);
-    printf("  -p, --print information             Print config information\n");
     printf("  -m, --memory size(MB)               Memory size used by lm, default: %dMB\n", mem_size);
     printf("  -b, --blind                         Hide information about configuration macros\n");
     printf("\n");
     printf("  -g, --generate makefile             Generate Makefile: by toplayer lm.cfg, defaule: Makefile\n");
-    printf("  -j, --project name                  Generate Makefile: project name, default: demo\n");
+    printf("  -p, --project name                  Generate Makefile: project name, default: demo\n");
     printf("  -u, --build directory               Generate Makefile: build directory, default: build\n");
+    printf("  -r, --cross compiler prefix         Generate Makefile: cross compiler prefix\n");
 }
 
 
@@ -129,12 +141,17 @@ static int lm_gen_mkfile_file(const char *mkfile, const char *pro_name, const ch
     fprintf(file, "\n\n");
 
     fprintf(file, "# include configuration file for makefile\n");
+    fprintf(file, ".PHONY: check_lmmk\n");
     fprintf(file, "ifneq ($(wildcard %s),)\n", confmk_file);
     fprintf(file, "-include %s\n", confmk_file);
+    fprintf(file, "else\n");
+    fprintf(file, "check_lmmk:\n");
+    fprintf(file, "\t@echo \"Please run 'make config'\"\n");
     fprintf(file, "endif\n");
     fprintf(file, "\n\n");
 
     fprintf(file, "# toolchain\n");
+    fprintf(file, "CC_PREFIX ?= %s\n", gcc_prefix);
     fprintf(file, "CC = $(CC_PREFIX)gcc\n");
     fprintf(file, "AS = $(CC_PREFIX)gcc -x assembler-with-cpp\n");
     fprintf(file, "CP = $(CC_PREFIX)objcopy\n");
@@ -164,12 +181,13 @@ static int lm_gen_mkfile_file(const char *mkfile, const char *pro_name, const ch
     }
     fprintf(file, "\n\n");
 
-    fprintf(file, "# list of c program objects\n");
-    fprintf(file, "OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(%s:.c=.o)))\n", VAR_C_SOURCE);
+    fprintf(file, "# list of c and c++ program objects\n");
+    fprintf(file, "OBJECTS = $(addprefix $(BUILD_DIR)/,$(notdir $(patsubst %%.c, %%.o, $(patsubst %%.cpp, %%.o, $(%s)))))\n", VAR_C_SOURCE);
     fprintf(file, "vpath %%.c $(sort $(dir $(%s)))\n", VAR_C_SOURCE);
+    fprintf(file, "vpath %%.cpp $(sort $(dir $(%s)))\n", VAR_C_SOURCE);
     fprintf(file, "# list of ASM program objects\n");
-    fprintf(file, "OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(%s:.s=.o)))\n", VAR_ASM_SOURCE);
-    fprintf(file, "vpath %%.s $(sort $(dir $(%s)))\n", VAR_ASM_SOURCE);
+    fprintf(file, "OBJECTS += $(addprefix $(BUILD_DIR)/,$(notdir $(%s:.S=.o)))\n", VAR_ASM_SOURCE);
+    fprintf(file, "vpath %%.S $(sort $(dir $(%s)))\n", VAR_ASM_SOURCE);
     fprintf(file, "\n\n");
 
 
@@ -180,10 +198,17 @@ static int lm_gen_mkfile_file(const char *mkfile, const char *pro_name, const ch
     fprintf(file, "\t\t-Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.c=.lst)) $< -o $@\n");
     fprintf(file, "\n");
 
-    fprintf(file, "$(BUILD_DIR)/%%.o: %%.s Makefile | $(BUILD_DIR)\n");
+    fprintf(file, "$(BUILD_DIR)/%%.o: %%.cpp Makefile | $(BUILD_DIR)\n");
+    fprintf(file, "\t@echo \"CC   $<\"\n");
+    fprintf(file, "\t@$(CC) -c $(CFLAGS) -MMD -MP \\\n");
+    fprintf(file, "\t\t-MF  $(BUILD_DIR)/$(notdir $(<:.cpp=.d)) \\\n");
+    fprintf(file, "\t\t-Wa,-a,-ad,-alms=$(BUILD_DIR)/$(notdir $(<:.cpp=.lst)) $< -o $@\n");
+    fprintf(file, "\n");
+
+    fprintf(file, "$(BUILD_DIR)/%%.o: %%.S Makefile | $(BUILD_DIR)\n");
     fprintf(file, "\t@echo \"AS   $<\"\n");
     fprintf(file, "\t@$(AS) -c $(CFLAGS) -MMD -MP  \\\n");
-    fprintf(file, "\t\t-MF $(BUILD_DIR)/$(notdir $(<:.s=.d)) $< -o $@\n");
+    fprintf(file, "\t\t-MF $(BUILD_DIR)/$(notdir $(<:.S=.d)) $< -o $@\n");
     fprintf(file, "\n\n");
 
     fprintf(file, "$(BUILD_DIR)/$(TARGET)%s: $(OBJECTS) Makefile\n", target);
@@ -242,7 +267,7 @@ int main(int argc, char *argv[])
     int ret;
     int opt;
 
-    while ((opt = getopt(argc, argv, "hdvc:f:o:k:p:m:bg:j:u:")) != -1) {
+    while ((opt = getopt(argc, argv, "hdvc:f:o:k:m:bg:p:u:r:")) != -1) {
         switch (opt) {
             case 'h':
                 show_help(argv[0]);
@@ -268,9 +293,6 @@ int main(int argc, char *argv[])
             case 'k':
                 confmk_file = optarg;
                 break;
-            case 'p':
-                info_file = optarg;
-                break;
             case 'm':
                 mem_size = strtol(optarg, NULL, 10);
                 break;
@@ -281,13 +303,16 @@ int main(int argc, char *argv[])
             case 'g':
                 mkfile = optarg;
                 break;
-            case 'j':
+            case 'p':
                 pro_name = optarg;
                 break;
             case 'u':
                 build_dir = optarg;
                 break;
-            
+            case 'r':
+                gcc_prefix = optarg;
+                break;
+
             case '?':
                 printf("Unknown option: %c\n", optopt);
                 exit(1);
@@ -296,8 +321,9 @@ int main(int argc, char *argv[])
     }
 
     int pcode = -1;
+
 #if (_WIN32)
-    pcode = system("chcp 65001 >null");  //UTF-8
+    pcode = system("chcp.com 65001 >null");  //UTF-8
     if(pcode) {
         LM_LOG_INFO("failed to set page code");
     }
@@ -336,7 +362,7 @@ int main(int argc, char *argv[])
     }
 
     if(!mkfile) {
-        ret = lm_parser_gen_mkconf_file(confmk_file);
+        ret = lm_parser_gen_lmmk_file(confmk_file);
         if(ret == LM_ERR) {
             goto error;
         }

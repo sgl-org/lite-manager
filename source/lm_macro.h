@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include "lm_array.h"
 #include "lm_list.h"
-#include <config.h>
+#include "config.h"
 
 
 enum lm_macro_type {
