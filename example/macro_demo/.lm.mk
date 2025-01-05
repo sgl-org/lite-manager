@@ -8,3 +8,4 @@ CONFIG_MACRO_B = 'n'
 
 # Variables provided for Makefile
 C_SOURCE := macro.c macro_a.c macro_b.c
+

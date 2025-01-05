@@ -34,10 +34,12 @@
 #define    VAR_C_DEFINE             "C_DEFINE"
 #define    VAR_ASM_SOURCE           "ASM_SOURCE"
 #define    VAR_LDS_SOURCE           "LDS_SOURCE"
+#define    VAR_MC_FLAG              "MC_FLAG"
 #define    VAR_AS_FLAG              "AS_FLAG"
 #define    VAR_C_FLAG               "C_FLAG"
 #define    VAR_CPP_FLAG             "CPP_FLAG"
 #define    VAR_LD_FLAG              "LD_FLAG"
+#define    VAR_LIB_NAME             "LIB_NAME"
 #define    VAR_LIB_PATH             "LIB_PATH"
 
 
@@ -64,11 +66,15 @@ void lm_parser_print_path_list(void);
 void lm_parser_print_define_list(void);
 void lm_parser_print_option_list(void);
 void lm_parser_print_src_list(void);
-int lm_parser_gen_header_file(const char* file_path);
-int lm_parser_gen_lmmk_file(const char* file_path);
-void lm_parser_print_all_macro_value(void);
 void lm_parser_print_config_list(void);
 bool lm_parser_lds_is_empty(void);
+lm_macro_head_t* lm_parser_get_macro_head(void);
+lm_macro_head_t* lm_parser_get_config_head(void);
+int lm_parser_get_parser_list_count(void);
+struct lm_parser_list* lm_parser_get_parser_list_head(void);
+char* lm_parser_get_parser_list_name(int index);
+
+
 
 #ifdef __cplusplus
 } /*extern "C"*/

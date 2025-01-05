@@ -91,6 +91,11 @@ lm_macro_t *lm_macro_search_by_name(lm_macro_head_t *head, char *name);
 bool lm_macro_value_is_valid(lm_macro_t *macro, char *value);
 void lm_macro_print_all(FILE* output, lm_macro_head_t *head);
 
+#if (_WIN32)
+void lm_macro_print_all_value(lm_macro_head_t *head);
+#elif __linux__
+void lm_macro_print_all_value(lm_macro_head_t *head);
+#endif
 
 #ifdef __cplusplus
 } /*extern "C"*/

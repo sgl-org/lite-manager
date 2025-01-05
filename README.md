@@ -7,7 +7,8 @@
 3. 你是否一直在寻找一个能够有效处理C语言中文件和宏之间的关系的工具？
 
 使用lite-manager吧，让你的C工程项目变得神清气爽！
-
+## 安装make工具  
+安装gnu-make之后，然后添加环境变量。     
 ## 1. 如何使用它, 步骤如下
 #### 例程1：hello world
 ##### 1. 新建一个`hello.c`源文件，内容如下：   
@@ -26,7 +27,7 @@ SRC   += hello.c
 ```
 ##### 3. 生成`Makefile`文件，执行如下命令：
 ```shell
-./lm.exe -g Makefile -p hello
+./lm.exe --gen Makefile --project hello
 ```
 执行完毕后，会在当前目录生成一个`Makefile`，这个`Makefile`就是我们编译需要使用的文件
 ##### 4. 执行`make config && make`即可编译项目
@@ -102,6 +103,8 @@ lite-manager key: [option] += [value] [value] ...
     ASM-$(CONFIG_XXX):     add asm source files dependent on CONFIG_XXX
     LDS:                   add build link script file
     LDS-$(CONFIG_XXX):     add build link script file dependent on CONFIG_XXX
+    MCFLAG:                add machine build flag
+    MCFLAG-$(CONFIG_XXX):  add machine build flag dependent on CONFIG_XXX
     ASFLAG:                add asm build flag
     ASFLAG-$(CONFIG_XXX):  add asm build flag dependent on CONFIG_XXX
     CFLAG:                 add c build flag
@@ -110,8 +113,11 @@ lite-manager key: [option] += [value] [value] ...
     CPPFLAG-$(CONFIG_XXX): add c++ build flag dependent on CONFIG_XXX
     LDFLAG:                add link flag
     LDFLAG-$(CONFIG_XXX):  add link flag dependent on CONFIG_XXX
+    LIB:                   add library
+    LIB-$(CONFIG_XXX):     add library dependent on CONFIG_XXX
     LIBPATH:               add library path
     LIBPATH-$(CONFIG_XXX): add library path dependent on CONFIG_XXX
+
     include:               include sub lm.cfg
     include-$(CONFIG_XXX): include sub lm.cfg dependent on CONFIG_XXX
 ```
@@ -121,8 +127,10 @@ lite-manager key: [option] += [value] [value] ...
 `DEFINE`用于添加全局宏，例如`DEFINE += STM32F10X_HD`表示编译的时候会添加全局宏到编译选项中   
 `ASM`用于添加汇编源文件，例如`ASM += boot.s`   
 `LDS`用于添加编译的链接脚本，例如`LDS += stm32f10x_64KB_flash.ld`   
+`MCFLAG`用于添加与机器相关的编译选项    
 `ASFLAG`用于添加汇编的编译选项  
 `CFLAG`用于添加C源文件的编译选项  
 `CPPFLAG`用于添加C++文件的编译选项  
-`LDFLAG`用于添加链接的参数，例如`LDFLAG += -lnosys -Wl,--cref -Wl,--no-relax -Wl,--gc-sections`   
+`LDFLAG`用于添加链接的参数，例如`LDFLAG += -lnosys -Wl,--cref -Wl,--no-relax -Wl,--gc-sections`
+`LIB`用于添加链接库文件  
 `LIBPATH`用于添加库文件的搜索路径  

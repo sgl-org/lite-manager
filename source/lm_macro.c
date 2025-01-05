@@ -27,7 +27,18 @@
 #include "lm_string.h"
 #include "lm_error.h"
 #include "lm_mem.h"
+#include "lm_log.h"
 
+
+#if (_WIN32)
+#include <windows.h>
+#elif ( __linux__)
+#include <unistd.h>
+#include <sys/ioctl.h>
+#endif
+
+#define ESC "\x1b"
+#define CSI "\x1b["
 
 
 void lm_macro_list_cache_init(lm_macro_head_t *head)
@@ -315,3 +326,99 @@ void lm_macro_print_all(FILE* output, lm_macro_head_t *head)
     }
 }
 
+
+#if (_WIN32)
+
+void lm_macro_print_all_value(lm_macro_head_t *head)
+{
+    printf("\x1b[32m"); //green color
+    printf(ESC"(0""┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"ESC"(B" "\n");
+    printf(ESC"(0""┃"ESC"(B""                               Lite-manager Configuration Information                           "ESC"(0""┃"ESC"(B" "\n");
+    printf(ESC"(0""┣"ESC"(B━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫"ESC"(B" "\n");
+    printf("\x1b[0m"); //clear color
+
+    // print all macro value
+    lm_list_node_t *node_head = &head->node;
+    lm_list_node_t *node;
+    lm_macro_t *macro = NULL;
+
+    if(head->count) {
+        lm_list_for_each(node, node_head) {
+
+            macro = container_of(node, lm_macro_t, node);
+            if(macro == NULL) {
+                continue;
+            }
+
+            printf("\x1b[32m┃\x1b[0m");
+            if(strcmp(macro->value, "n") == 0) {
+                printf("⛔ %-50s%-43s", macro->name, " ");
+            }
+            else if(strcmp(macro->value, "'n'") == 0) {
+                printf("✅ %-50s%-43s", macro->name, "n");
+            }
+            else {
+                printf("✅ %-50s%-43s", macro->name, macro->value);
+            }
+            printf("\x1b[32m┃\x1b[0m\n");
+        }
+    }
+    else {
+        printf(ESC"(0""\x1b[32m┃\x1b[0m"ESC"(B");
+        printf("                                       No Macro Configration!                                   ");
+        printf(ESC"(0""\x1b[32m┃\x1b[0m"ESC"(B" "\n");
+    }
+
+    printf("\x1b[32m"); //green color
+    printf(ESC"(0""┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"ESC"(B" "\n");
+    printf("\x1b[0m"); //clear color
+}
+
+#elif ( __linux__)
+
+void lm_macro_print_all_value(lm_macro_head_t *head)
+{
+    printf("\x1b[32m"); //green color
+    printf("┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n");
+    printf("┃                               Lite-manager Configuration Information                           ┃\n");
+    printf("┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n");
+    printf("\x1b[0m"); //clear color
+
+    // print all macro value
+    lm_list_node_t *node_head = &head->node;
+    lm_list_node_t *node;
+    lm_macro_t *macro = NULL;
+
+    if(head->count) {
+        lm_list_for_each(node, node_head) {
+
+            macro = container_of(node, lm_macro_t, node);
+            if(macro == NULL) {
+                continue;
+            }
+
+            printf("\x1b[32m┃\x1b[0m");
+            if(strcmp(macro->value, "n") == 0) {
+                printf("⛔ %-50s%-43s", macro->name, " ");
+            }
+            else if(strcmp(macro->value, "'n'") == 0) {
+                printf("✅ %-50s%-43s", macro->name, "n");
+            }
+            else {
+                printf("✅ %-50s%-43s", macro->name, macro->value);
+            }
+            printf("\x1b[32m┃\x1b[0m\n");
+        }
+    }
+    else {
+        printf("\x1b[32m┃\x1b[0m");
+        printf("                                       No Macro Configration!                                   ");
+        printf("\x1b[32m┃\x1b[0m\n");
+    }
+
+    printf("\x1b[32m"); //green color
+    printf("┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛\n");
+    printf("\x1b[0m"); //clear color
+}
+
+#endif
