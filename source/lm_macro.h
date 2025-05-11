@@ -65,7 +65,13 @@ struct lm_macro {
     lm_array_t   choice;
     struct lm_macro_range range;
     char           *value;
-    char           *depend;  
+    char           *depend;
+
+    union {
+        char       *def_str;
+        double     def_num;
+    };
+    int            def_flag;
 };
 
 
@@ -86,6 +92,7 @@ void lm_macro_choice_set_count(lm_macro_t* macro, int count);
 int lm_macro_choice_append(lm_macro_t* macro, char* str);
 char *lm_macro_choice_get_first(lm_macro_t* macro);
 int lm_macro_depend_set(lm_macro_t* macro, char* str);
+int lm_macro_default_set(lm_macro_t* macro, char* str);
 int lm_macro_delete(lm_macro_head_t *head, lm_macro_t *macro);
 lm_macro_t *lm_macro_search_by_name(lm_macro_head_t *head, char *name);
 bool lm_macro_value_is_valid(lm_macro_t *macro, char *value);

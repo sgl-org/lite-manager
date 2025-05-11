@@ -2,14 +2,17 @@ TARGET    := lm
 BUILD_DIR := build
 
 
-# include configuration file for makefile
-.PHONY: check_lmmk
-ifneq ($(wildcard .lm.mk),)
--include .lm.mk
-else
-check_lmmk:
-	@echo "Please run 'make config'"
-endif
+CONFIG_DEBUG = y
+CONFIG_LOG_LEVEL = 0
+CONFIG_MEM_POOL_SIZE = 20
+CONFIG_MACRO_CACHE_SIZE = 100
+
+# Variables provided for Makefile
+C_SOURCE := lm_macro.c lm_mem.c lm_parser.c lm_string.c lm_array.c lm_log.c lm_gen.c lm_cmd.c main.c heap_tlsf.c
+
+C_PATH := -I.
+
+C_FLAG := -O2 -std=c99
 
 
 # toolchain
@@ -24,7 +27,7 @@ BIN = $(CP) -O binary -S
 
 
 CFLAGS    := $(C_PATH) $(C_DEFINE) $(C_FLAG) $(CPP_FLAG)
-LDFLAGS   := $(LD_FLAG) $(LIB_PATH) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map
+LDFLAGS   := $(LD_FLAG) $(LIB_PATH)
 
 
 .PHONY: all
@@ -65,6 +68,7 @@ $(BUILD_DIR)/$(TARGET).exe: $(OBJECTS) Makefile
 	@echo ''
 	@echo "Build Successful!"
 	@echo "ELF   $@"
+	@cp $@ .
 
 
 elf_info: $(BUILD_DIR)/$(TARGET).exe
@@ -82,8 +86,8 @@ $(BUILD_DIR):
 
 # Check if the proj.cfg file exists
 config: proj.cfg
-	@./lm.exe --projcfg proj.cfg --lmcfg lm.cfg --out config.h --mem 50
-	@./lm.exe --rmdir $(BUILD_DIR)
+	@lm.exe --projcfg proj.cfg --lmcfg lm.cfg --out config.h --mk .lm.mk --mem 50
+	@lm.exe --rmdir $(BUILD_DIR)
 
 
 # clean command, delete build directory

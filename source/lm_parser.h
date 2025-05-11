@@ -49,6 +49,7 @@ typedef enum lm_parser_err {
     LM_PARSER_NOT_MATCH = 2,
     LM_PARSER_INVALID_VALUE = 3,
     LM_PARSER_INVALID_DEPEND = 4,
+    LM_PARSER_INVALID_MACRO = 5,
 
 }lm_parser_err_e;
 

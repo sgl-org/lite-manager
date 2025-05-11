@@ -90,6 +90,8 @@ lm_macro_t* lm_macro_new(char* name)
     macro->depend = NULL;
     macro->value = NULL;
     macro->type = LM_MACRO_STRING;
+    macro->def_str = NULL;
+    macro->def_flag = 0;
 
     int ret = lm_str_dupli_string(&macro->name, name);
     if(ret) {
@@ -168,6 +170,12 @@ char *lm_macro_choice_get_first(lm_macro_t* macro)
 int lm_macro_depend_set(lm_macro_t* macro, char* str)
 {
     return lm_str_dupli_string(&macro->depend, str);
+}
+
+
+int lm_macro_default_set(lm_macro_t* macro, char* str)
+{
+    return lm_str_dupli_string(&macro->def_str, str);
 }
 
 
@@ -276,7 +284,7 @@ bool lm_macro_value_is_valid(lm_macro_t *macro, char *value)
     lm_array_node_t *array_node = NULL;
 
     if(macro->type == LM_MACRO_NUMBER) {
-        double num_value = strtof(value, NULL);
+        double num_value = strtod(value, NULL);
         if(num_value >= macro->range.min && num_value <= macro->range.max) {
             return true;
         }

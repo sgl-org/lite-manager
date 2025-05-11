@@ -33,7 +33,7 @@
 #include "lm_cmd.h"
 
 
-#define    VERSION           "0.2024730"
+#define    VERSION           "0.20250511"
 
 
 static const char *makefile = NULL;
@@ -48,32 +48,61 @@ static int mem_size = CONFIG_MEM_POOL_SIZE;
 static bool blind = false;
 
 
+static void show_flag_usage(char *flag, char *example)
+{
+    printf("    Example:\n");
+    printf("        %s += %s\n", flag, example);
+    printf("\n");
+}
+
 static void show_key_usage(void)
 {
     printf("lite-manager key: [option] | [option]-$(macro_xxx) += [value] [value] ...\n");
     printf("\n[option]:\n");
     printf("    SRC:                   add c or c++ source files\n");
     printf("    SRC-$(CONFIG_XXX):     add c or c++ source files dependent on CONFIG_XXX\n");
+    show_flag_usage("SRC", "main.c xxx.c  test/*.c");
+
     printf("    PATH:                  add c or c++ include path\n");
     printf("    PATH-$(CONFIG_XXX):    add c or c++ include path dependent on CONFIG_XXX\n");
+    show_flag_usage("PATH", "include test/include");
+
     printf("    DEFINE:                add c or c++ global macro define\n");
     printf("    DEFINE-$(CONFIG_XXX):  add c or c++ global macro define dependent on CONFIG_XXX\n");
+    show_flag_usage("DEFINE", "STM32F10X_HD");
+
     printf("    ASM:                   add asm source files\n");
     printf("    ASM-$(CONFIG_XXX):     add asm source files dependent on CONFIG_XXX\n");
+    show_flag_usage("ASM", "startup.S");
+
     printf("    LDS:                   add build link script file\n");
     printf("    LDS-$(CONFIG_XXX):     add build link script file dependent on CONFIG_XXX\n");
+    show_flag_usage("LDS", "memory.lds");
+
     printf("    ASFLAG:                add asm build flag\n");
     printf("    ASFLAG-$(CONFIG_XXX):  add asm build flag dependent on CONFIG_XXX\n");
+    show_flag_usage("ASFLAG", "-mcpu=cortex-m3 -mthumb -g -gdwarf-2 -Wall");
+
     printf("    CFLAG:                 add c build flag\n");
     printf("    CFLAG-$(CONFIG_XXX):   add c build flag dependent on CONFIG_XXX\n");
+    show_flag_usage("CFLAG", "-mcpu=cortex-m3 -mthumb -g -gdwarf-2 -Wall");
+
     printf("    CPPFLAG:               add c++ build flag\n");
     printf("    CPPFLAG-$(CONFIG_XXX): add c++ build flag dependent on CONFIG_XXX\n");
+    show_flag_usage("CPPFLAG", "-mcpu=cortex-m3 -mthumb -g -gdwarf-2 -Wall");
+
     printf("    LDFLAG:                add link flag\n");
     printf("    LDFLAG-$(CONFIG_XXX):  add link flag dependent on CONFIG_XXX\n");
+    show_flag_usage("LDFLAG", "-lsdl -lrt -lc");
+
     printf("    LIB:                   add library\n");
     printf("    LIB-$(CONFIG_XXX):     add library dependent on CONFIG_XXX\n");
+    show_flag_usage("LIB", "sdl rt");
+
     printf("    LIBPATH:               add library path\n");
     printf("    LIBPATH-$(CONFIG_XXX): add library path dependent on CONFIG_XXX\n");
+    show_flag_usage("LIBPATH", "path/to/lib/path");
+
     printf("\n");
     printf("    include:               include sub lm.cfg\n");
     printf("    include-$(CONFIG_XXX): include sub lm.cfg dependent on CONFIG_XXX\n");
@@ -88,8 +117,9 @@ static void show_help(char *app_name)
     printf("    --flag                                Display this help detail message\n");
     printf("    --version                             Display the version of the lite-manager\n");
     printf("    --lmcfg                               Input lite manager file(toplayer lm.cfg), default: %s\n", lmcfg);
-    printf("    --projcfg                             Input using project config file name, default: %s\n", projcfg);
-    printf("    --out                                 Output header file output path, default: %s\n", header_file);
+    printf("    --projcfg                             Input using project config file, default: %s\n", projcfg);
+    printf("    --out                                 Output config header file, default: %s\n", header_file);
+    printf("    --mk                                  Output config makefile file, default: %s\n", lmmk_file);
     printf("    --mem                                 Memory size used by lm, default: %dMB\n", mem_size);
     printf("    --blind                               Hide information about configuration macros\n");
     printf("\n");
@@ -110,15 +140,16 @@ static struct option cmd_long_options[] =
     {"lmcfg",     required_argument,       NULL, 'd'},
     {"projcfg",   required_argument,       NULL, 'e'},
     {"out",       required_argument,       NULL, 'f'},
-    {"mem",       required_argument,       NULL, 'g'},
-    {"blind",     no_argument,             NULL, 'h'},
+    {"mk",        required_argument,       NULL, 'g'},
+    {"mem",       required_argument,       NULL, 'h'},
+    {"blind",     no_argument,             NULL, 'i'},
 
-    {"gen",       required_argument,       NULL, 'i'},
-    {"project",   required_argument,       NULL, 'j'},
-    {"build",     required_argument,       NULL, 'k'},
-    {"prefix",    required_argument,       NULL, 'l'},
+    {"gen",       required_argument,       NULL, 'j'},
+    {"project",   required_argument,       NULL, 'k'},
+    {"build",     required_argument,       NULL, 'l'},
+    {"prefix",    required_argument,       NULL, 'm'},
 
-    {"rmdir",     required_argument,       NULL, 'm'},
+    {"rmdir",     required_argument,       NULL, 'n'},
     {NULL,        0,                       NULL,  0},
 };
 
@@ -156,24 +187,27 @@ int main(int argc, char *argv[])
                 header_file = optarg;
                 break;
             case 'g':
-                mem_size = strtol(optarg, NULL, 10);
+                lmmk_file = optarg;
                 break;
             case 'h':
-                blind = true;
+                mem_size = strtol(optarg, NULL, 10);
                 break;
             case 'i':
-                makefile = optarg;
+                blind = true;
                 break;
             case 'j':
-                pro_name = optarg;
+                makefile = optarg;
                 break;
             case 'k':
-                build_dir = optarg;
+                pro_name = optarg;
                 break;
             case 'l':
-                gcc_prefix = optarg;
+                build_dir = optarg;
                 break;
             case 'm':
+                gcc_prefix = optarg;
+                break;
+            case 'n':
                 lm_rmdir(optarg);
                 exit(0);
                 break;

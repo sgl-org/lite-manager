@@ -37,14 +37,14 @@ SRC   += hello.c
 在lm.cfg文件中添加宏，如下所示：
 ```C
 CONFIG_MACRO_A
-    choice = 0, 1, 2, 3
+    choices = 0, 1, 2, 3
 
 CONFIG_MACRO_B
-    choice = [0, 100]
-    depend = !CONFIG_MACRO_A
+    choices = [0, 100]
+    depends = !CONFIG_MACRO_A
 ```
 上面的`CONFIG_MACRO_A`可选择的值为`0, 1, 2, 3`这四个值，`CONFIG_MACRO_B`可选择的值为0~100，这个宏与`CONFIG_MACRO_A`互斥，也就是只有`CONFIG_MACRO_A`关闭时，`CONFIG_MACRO_B`才可被开启。   
-对于上面的宏的值，具体设置需要添加`proj.cfg`文件，该文件类似于Linux中的.config配置文件，这个配置文件将会设置所有宏的值，如果某些值未设置，则会使用`choice`中第一个值作为缺损值。例如下面`proj.cfg`：
+对于上面的宏的值，具体设置需要添加`proj.cfg`文件，该文件类似于Linux中的.config配置文件，这个配置文件将会设置所有宏的值，如果某些值未设置，则会使用`choices`中第一个值作为缺损值。例如下面`proj.cfg`：
 ```C
 COMPILER = gcc
 CONFIG_DEBUG = y
@@ -75,11 +75,11 @@ SRC-$(CONFIG_MACRO_A)    += macro_a.c
 在最顶层的`lm.cfg`的内容如下：
 ```
 CONFIG_MACRO_A
-    choice = 0, 1, 2, 3
+    choices = 0, 1, 2, 3
 
 CONFIG_MACRO_B
-    choice = [0, 100]
-    depend = !CONFIG_MACRO_A
+    choices = [0, 100]
+    depends = !CONFIG_MACRO_A
 
 
 include "subdirA/lm.cfg"

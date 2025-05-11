@@ -45,6 +45,7 @@ bool lm_str_head_is_four_space(char* str);
 bool lm_str_head_is_eight_space(char* str);
 int lm_str_dupli_string(char **lm_str, char *str);
 long long lm_str_to_int(char *str);
+int lm_str_num_of_substr_split(char *str);
 
 
 #ifdef __cplusplus

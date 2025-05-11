@@ -206,10 +206,11 @@ char* lm_str_pick_str(char* str, int index)
     int num = lm_str_num_str_space(str);
 
     if(num == 1 && index == 1) {
-        while(*str++) {
+        while(*str) {
             if(*str != ' ') {
                 break;
             }
+            str ++;
         }
 
         strcpy(ret_str, str);
@@ -386,4 +387,65 @@ long long lm_str_to_int(char *str)
     else {
         return LM_INVALID_NUM;
     }
+}
+
+
+int lm_str_num_of_substr_split(char *str)
+{
+    int count = 0;
+    char *p = str;
+    int len = strlen(str);
+
+    for(int i = 0; i < len; i ++) {
+        if(*p == ' ') {
+            p ++;
+        }
+        else if(*p == '\"') {
+            p ++;
+
+            while(*p) {
+                if(*p == '\"') {
+                    break;
+                }
+                i ++;
+                p++;
+            }
+
+            if(*p == '\0') {
+                goto err;
+            }
+
+            count ++;
+        }
+        else {
+            while(*p) {
+                if(*p == '(') {
+                    while(*p) {
+                        if(*p == ')') {
+                            break;
+                        }
+                        i ++;
+                        p++;
+                    }
+                }
+
+                if(*p == '\0') {
+                    goto err;
+                }
+
+                if(*p == ' ') {
+                    break;
+                }
+                i ++;
+
+                p++;
+            }
+
+            count ++;
+        }
+    }
+
+    return count;
+err:
+    return -1;
 }

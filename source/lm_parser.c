@@ -30,6 +30,7 @@
 #include "lm_parser.h"
 #include "lm_log.h"
 #include <dirent.h>
+#include <ctype.h>
 
 
 #define MAX_PER_LINE_LENGTH          4096
@@ -75,6 +76,8 @@ static struct lm_parser_list {
 static lm_macro_head_t config_head;
 static lm_macro_head_t macro_head;
 static const char *config_file = NULL;
+static char error_msg[MAX_PER_LINE_LENGTH] = {0};
+
 
 static char *lm_parser_alloc(void)
 {
@@ -284,64 +287,83 @@ int lm_parser_config_file(const char *path)
     return LM_OK;
 }
 
-//TODO: enhance this function 
-static int lm_parser_macro_express_value(const char *expr) 
+
+static int lm_parser_macro_express_value(const char *expression, int *index);
+
+// 解析因子
+static int evaluate_factor(const char *expression, int *index)
 {
-    char operand[100] = {0};
-    int operand_top = 0;
-    char operator[100] = {0};
-    int operator_top = 0;
+    int result;
 
-    for (int i = 0; i < strlen(expr); i++) {
-        if(expr[i] == ' ') {
-            continue;
-        }
-        else if(expr[i] == '(' || expr[i] == '!' || expr[i] == '&' || expr[i] == '|') {
-            operator[operator_top++] = expr[i];
-            continue;
-        }
-        else if(expr[i] == '0' || expr[i] == '1') {
-            if(operator_top == 0) {
-                operand[operand_top++] = expr[i] - '0';
-                continue;
-            }
+    if (expression[*index] == '!') {
+        (*index)++;
+        result = evaluate_factor(expression, index);
+        if (result == -1) 
+            return -1;
+        
+            result = !result;
+    }
+    else if (expression[*index] == '(') {
+        (*index)++;
+        result = lm_parser_macro_express_value(expression, index);
+        if (result == -1)
+            return -1;
 
-            if(operator[operator_top - 1] == '&' || operator[operator_top - 1] == '|') {
-                int num = 0;
-                int a = operand[--operand_top];
-                int b = expr[i] - '0';
-                num = (operator[operator_top - 1] == '&' ? a & b : a | b);
-                operand[operand_top++] = num;
-
-                operator_top --;
-            }
-            else if(operator[operator_top - 1] == '!') {
-                operand[operand_top++] = !(expr[i] - '0');
-                operator_top --;
-            }
-            // else {
-            //     operand[operand_top++] = expr[i];
-            // }
-        }
-        else if(expr[i] == ')') {
-            
+        if (expression[*index] == ')') {
+            (*index)++;
         }
         else {
-            return -1;
+            return -1; // 缺少右括号
         }
     }
-
-    if(operator_top == 1) {
-        int a = operand[--operand_top];
-        int b = operand[--operand_top];
-        operand[operand_top++] = (operator[--operator_top] == '&' ? a & b : a | b);
+    else if (isdigit(expression[*index])) {
+        result = expression[*index] - '0';
+        (*index)++;
+    }
+    else {
+        return -1; // 无效字符
     }
 
-    if(operand_top != 1 || operator_top != 0) {
+    return result;
+}
+
+
+// 解析项
+static int evaluate_term(const char *expression, int *index)
+{
+    int result = evaluate_factor(expression, index);
+    if (result == -1) return -1;
+
+    while (expression[*index] == '&') {
+        (*index)++;
+        int factor_result = evaluate_factor(expression, index);
+        if (factor_result == -1)
+            return -1;
+        
+        result &= factor_result;
+    }
+
+    return result;
+}
+
+
+// 解析表达式, 如果表达式未完全解析，则表示语法错误
+static int lm_parser_macro_express_value(const char *expression, int *index)
+{
+    int result = evaluate_term(expression, index);
+    if (result == -1) 
         return -1;
+
+    while (expression[*index] == '|') {
+        (*index)++;
+        int term_result = evaluate_term(expression, index);
+        if (term_result == -1)
+            return -1;
+        
+        result |= term_result;
     }
 
-    return operand[0];
+    return result;
 }
 
 
@@ -382,7 +404,8 @@ static char *lm_parser_macro_depend_preprocess(char *depend)
                     }
                 }
                 else {
-                    *p++ = '0';
+                    strcpy(error_msg, macro_name);
+                    return "error";
                 }
             }
 
@@ -400,6 +423,8 @@ static char *lm_parser_macro_depend_preprocess(char *depend)
 
 static int lm_parser_get_macro_depend_value(lm_macro_t *macro)
 {
+    int ret = 0, index = 0;
+
     if (macro == NULL) {
         return -1;
     }
@@ -408,39 +433,54 @@ static int lm_parser_get_macro_depend_value(lm_macro_t *macro)
     if(dep == NULL) { //no dependence
         return 1;
     }
-    else if(dep == "error") {
+    else if(strcmp(dep, "error") == 0) {
         return 2; //undefine macro error
     }
 
-    return lm_parser_macro_express_value(dep);
+    ret = lm_parser_macro_express_value(dep, &index);
+    if (dep[index] != '\0') {
+        return -1;
+    }
+
+    return ret;
 }
 
 
 // return 0: disable  1: enable
 static int lm_parser_get_macro_status_by_name(char *macro_name, char *macro_val)
 {
-    lm_macro_t * macro = lm_macro_search_by_name(&macro_head, macro_name);
-    if(macro != NULL) {
-        if(strcmp(macro->value, "n") == 0) {
-            if(macro_val[0] == 0 || strcmp(macro_val, "n") != 0) {
-                return 0;
+    lm_macro_head_t *head = &macro_head;
+    lm_macro_t * macro = NULL;
+
+    while(1) {
+        macro = lm_macro_search_by_name(head, macro_name);
+        if(macro != NULL) {
+            if(strcmp(macro->value, "n") == 0) {
+                if(macro_val[0] == 0 || strcmp(macro_val, "n") != 0) {
+                    return 0;
+                }
+                else {
+                    return 1;
+                }
             }
             else {
-                return 1;
+                if(macro_val[0] == 0 || strcmp(macro->value, macro_val) == 0) {
+                    return 1;
+                }
+                else {
+                    return 0;
+                }
             }
         }
         else {
-            if(macro_val[0] == 0 || strcmp(macro->value, macro_val) == 0) {
-                return 1;
-            }
-            else {
+            if(head == &config_head)
                 return 0;
-            }
+
+            head = &config_head;
         }
     }
-    else {
-        return 0;
-    }
+
+    return 0;
 }
 
 
@@ -486,11 +526,12 @@ static int lm_parser_get_keystring_depend_value(char* keystring)
                     status = 3;
                 }
 
-            // match '=' 
+            // match '='
             case 3:
-                if(*p == '=') {
+                if(*p == '=' && *(p + 1) == '=') {
                     status = 4;
                     flag = 0;
+                    p ++;
                     break;
                 }
                 else {
@@ -594,6 +635,7 @@ static lm_parser_err_e lm_parser_prompt_src_add_list(const char *path, char *rea
     char *p = read_line;
     int status = 0, i = 0;
     bool flag = false;
+    bool enable = true;
 
     while(*p) {
         switch(status) {
@@ -642,16 +684,15 @@ static lm_parser_err_e lm_parser_prompt_src_add_list(const char *path, char *rea
             }
 
             int depend_val = lm_parser_get_keystring_depend_value(macro_name);
-            if(depend_val == 0) {
-                return LM_PARSER_OK;
-            }
-            else if(depend_val == 1) {
-                status = 2;
-                break;
-            }
-            else if(depend_val < 0) {
+            if(depend_val < 0) {
                 return LM_PARSER_SYNTAX;
             }
+            else {
+                status = 2;
+                enable = depend_val == 1 ? true : false;
+                break;
+            }
+
 
         case 2:
             while(*p) {
@@ -665,6 +706,10 @@ static lm_parser_err_e lm_parser_prompt_src_add_list(const char *path, char *rea
                 else {
                     return LM_PARSER_SYNTAX; 
                 }
+            }
+
+            if(!enable) {
+                return LM_PARSER_OK;
             }
 
             int num = lm_str_num_str_space(p);
@@ -765,6 +810,7 @@ static lm_parser_err_e lm_parser_key_string_add_list(lm_array_t *list, const cha
     int status = 0;
     int key_len = strlen(key_str);
     bool flag = false;
+    bool enable = true;
 
     while(*p) {
         switch(status) {
@@ -811,15 +857,13 @@ static lm_parser_err_e lm_parser_key_string_add_list(lm_array_t *list, const cha
                 }
 
                 int depend_val = lm_parser_get_keystring_depend_value(macro_name);
-                if(depend_val == 0) {
-                    return LM_PARSER_OK;
-                }
-                else if(depend_val == 1) {
-                    status = 2;
-                    break;
-                }
-                else if(depend_val < 0) {
+                if(depend_val < 0) {
                     return LM_PARSER_SYNTAX;
+                }
+                else {
+                    status = 2;
+                    enable = depend_val == 1 ? true : false;
+                    break;
                 }
             }
             else {
@@ -839,6 +883,10 @@ static lm_parser_err_e lm_parser_key_string_add_list(lm_array_t *list, const cha
                 else {
                     return LM_PARSER_SYNTAX; 
                 }
+            }
+
+            if(!enable) {
+                return LM_PARSER_OK;
             }
 
             if(rawflag) {
@@ -882,14 +930,71 @@ static lm_macro_t *lm_parser_prompt_is_macro(lm_macro_head_t *head, char *read_l
 }
 
 
+static lm_parser_err_e lm_parser_prompt_is_default(lm_macro_t *macro, char *read_line)
+{
+    char *p = read_line;
+
+    if (!lm_str_head_is_four_space(read_line)) {
+        strcpy(error_msg, "syntax error: must start with four spaces");
+        return LM_PARSER_SYNTAX;
+    }
+
+    if (lm_str_find_str_space(read_line, "default") == 0 
+        && lm_str_find_str_space(read_line, "=") == 1) {
+
+        while (*p) {
+            if (*p != '=')
+                p++;
+            else
+                break;
+        }
+
+        char *def_str = lm_str_delete_space(p + 1);
+        if(def_str == NULL) {
+            strcpy(error_msg, "invalid default value");
+            return LM_PARSER_SYNTAX;
+        }
+
+        /* check value is valid */
+        if(lm_macro_value_is_valid(macro, def_str) == false) {
+            strcpy(error_msg, "invalid default value");
+            return LM_PARSER_SYNTAX;
+        }
+
+        if(macro->type == LM_MACRO_NUMBER) {
+            char *endptr;
+            float number = strtof(def_str, &endptr);
+            if (*endptr != 0) {
+                strcpy(error_msg, "invalid default value");
+                return LM_PARSER_SYNTAX; // 第一个数字无效
+            }
+
+            macro->def_num = number;
+            macro->def_flag = 1;
+        }
+        else if(macro->type == LM_MACRO_STRING) {
+            lm_macro_default_set(macro, def_str);
+            macro->def_flag = 1;
+            lm_free(def_str);
+        }
+
+        return LM_PARSER_OK;
+    }
+
+    return LM_PARSER_NOT_MATCH;
+}
+
+
 static lm_parser_err_e lm_parser_prompt_is_depend(lm_macro_t *macro, char *read_line)
 {
     char *p = read_line;
 
-    if (!lm_str_head_is_four_space(read_line))
+    if (!lm_str_head_is_four_space(read_line)) {
+        strcpy(error_msg, "syntax error: must start with four spaces");
         return LM_PARSER_SYNTAX;
+    }
 
-    if (lm_str_find_str_space(read_line, "depend") == 0 
+    if (lm_str_find_str_space(read_line, "depends") == 0 
         && lm_str_find_str_space(read_line, "=") == 1) {
 
         while (*p) {
@@ -964,14 +1069,18 @@ static char *lm_parser_prompt_is_include(char *read_line)
     char *p = read_line;
     int status = 0, i = 0;
     bool flag = false;
+    int ret = -1;
 
     while(*p) {
         switch(status) {
         // match if is include
         case 0:
-            if(p[0] == 'i' && p[1] == 'n' && p[2] == 'c' && p[3] == 'l' && p[4] == 'u' && p[5] == 'd' && p[6] == 'e') {
+            if(p[0] == 'i' && p[1] == 'n' && p[2] == 'c' && p[3] == 'l' && p[4] == 'u' && p[5] == 'd' && p[6] == 'e' && 
+               (p[7] == ' ' || (p[7] == '-' && p[8] == '$'))
+              ) {
 
-                if(lm_str_num_str_space(p) > 5) {
+                ret = lm_str_num_of_substr_split(p);
+                if( ret != 2 || ret < 0) {
                     return "syntax_error";
                 }
                 p += 7;
@@ -1042,7 +1151,6 @@ static lm_parser_err_e lm_parser_prompt_is_choice_number(lm_macro_t *macro, char
     int str_len = strlen(str);
     int colon = 0;
     double range_min, range_max;
-    char num_str[100];
 
     lm_parser_skip_space(&p_sc);
     
@@ -1166,10 +1274,12 @@ static lm_parser_err_e lm_parser_prompt_is_choice(lm_macro_t *macro, char *read_
 {
     char *p = read_line;
 
-    if (!lm_str_head_is_four_space(read_line))
+    if (!lm_str_head_is_four_space(read_line)) {
+        strcpy(error_msg, "syntax error: must start with four spaces");
         return LM_PARSER_SYNTAX;
+    }
 
-    if (lm_str_find_str_space(read_line, "choice") == 0 
+    if (lm_str_find_str_space(read_line, "choices") == 0 
          && lm_str_find_str_space(read_line, "=") == 1) {
 
         while (*p) {
@@ -1187,14 +1297,17 @@ static lm_parser_err_e lm_parser_prompt_is_choice(lm_macro_t *macro, char *read_
             return LM_PARSER_OK;
         }
         else if(err_ret == LM_PARSER_SYNTAX) {
+            strcpy(error_msg, "invalid range format");
             return LM_PARSER_SYNTAX;
         }
 
         if (value_str[0] == ',' || value_str[strlen(value_str) - 1] == ',') {
+            strcpy(error_msg, "expect a ']'");
             return LM_PARSER_SYNTAX;
         }
 
         if(lm_parser_prompt_choice_add_value(macro, value_str)) {
+            strcpy(error_msg, "invalid choice value");
             return LM_PARSER_SYNTAX;
         }
 
@@ -1209,19 +1322,44 @@ static lm_parser_err_e lm_parser_prompt_is_choice(lm_macro_t *macro, char *read_
 
 static lm_parser_err_e lm_parser_macro_set_value(lm_macro_t *macro)
 {
+    char value_str[1024] = {0};
+
     if(macro == NULL) {
         return LM_PARSER_OK;
     }
 
     int value = lm_parser_get_macro_depend_value(macro);
+    if(value == 0) {
+        lm_macro_value_set(macro, "n");
+        return LM_PARSER_OK;
+    }
     if(value == 1) {
         lm_macro_t *search = lm_macro_search_by_name(&config_head, macro->name);
         if(search == NULL) { //not found in defconfig list
-            char *first_value = lm_macro_choice_get_first(macro);
-            if(first_value)
-                lm_macro_value_set(macro, first_value);
-            else
-                lm_macro_value_set(macro, "Unknow ERROR");
+            if(macro->def_flag == 1) {
+                if(macro->type == LM_MACRO_NUMBER) {
+                    snprintf(value_str, 1024, "%g", macro->def_num);
+                    lm_macro_value_set(macro, value_str);
+
+                    if(lm_macro_value_is_valid(macro, value_str) == false) {
+                        return LM_PARSER_INVALID_VALUE;
+                    }
+                }
+                else if(macro->type == LM_MACRO_STRING) {
+                    lm_macro_value_set(macro, macro->def_str);
+
+                    if(lm_macro_value_is_valid(macro, macro->value) == false) {
+                        return LM_PARSER_INVALID_VALUE;
+                    }
+                }
+            }
+            else {
+                char *first_value = lm_macro_choice_get_first(macro);
+                if(first_value)
+                    lm_macro_value_set(macro, first_value);
+                else
+                    lm_macro_value_set(macro, "Unknow ERROR");
+            }
         }
         else {
             if(strcmp(search->value, "n") == 0) {
@@ -1247,7 +1385,7 @@ static lm_parser_err_e lm_parser_macro_set_value(lm_macro_t *macro)
         return LM_PARSER_INVALID_DEPEND;
     }
     else {
-        lm_macro_value_set(macro, "n");
+        return LM_PARSER_INVALID_MACRO;
     }
 
     return LM_PARSER_OK;
@@ -1332,6 +1470,14 @@ static int lm_parser_macro_set_prompt(lm_macro_t *macro, char *read_line)
         return LM_OK;
     }
 
+    prompt_ret = lm_parser_prompt_is_default(macro, read_line);
+    if(prompt_ret == LM_PARSER_SYNTAX) {
+        return LM_ERR;
+    }
+    else if(prompt_ret == LM_PARSER_OK) {
+        return LM_OK;
+    }
+
     prompt_ret = lm_parser_prompt_is_depend(macro, read_line);
     if(prompt_ret == LM_PARSER_SYNTAX) {
         return LM_ERR;
@@ -1340,35 +1486,30 @@ static int lm_parser_macro_set_prompt(lm_macro_t *macro, char *read_line)
         return LM_OK;
     }
 
+    strcpy(error_msg, "invalid prompt, only support: choice, default, depend");
     return LM_ERR;
 }
 
 
-static void lm_parser_macro_help(lm_macro_t *macro, lm_parser_err_e flag)
+static void lm_parser_macro_choice_helper(const char *file, int lines, lm_macro_t *macro)
 {
-    switch(flag) {
-        case LM_PARSER_INVALID_VALUE:
-            char *value_p = lm_parser_get_macro_value(&config_head, macro);
-            LM_LOG_ERROR("%s: %s = %s value is invalid", config_file, macro->name, value_p);
-            printf("\x1b[32m[INFO]💡You can choose: ");
-
-            if(lm_macro_type_get(macro) == LM_MACRO_NUMBER) {
-                printf("[%f ~ %f]", macro->range.min, macro->range.max);
-            }
-            else {
-                lm_array_print(stdout, &macro->choice);
-            }
-            printf("\x1b[0m\n");
-            break;
-
-        case LM_PARSER_INVALID_DEPEND:
-            LM_LOG_ERROR("%s: depend of %s syntax is invalid", config_file, macro->name);
-            break;
-        
-        default:
-            LM_LOG_ERROR("%s: %s Unknow ERROR", config_file, macro->name);
-            break;
+    char *value_p = lm_parser_get_macro_value(&config_head, macro);
+    if(value_p == NULL) {
+        LM_LOG_ERROR("%s:%d %s = %s value is invalid", file, lines, macro->name, macro->value);
     }
+    else {
+        LM_LOG_ERROR("%s: %s = %s value is invalid", config_file, macro->name, value_p);
+    }
+
+    printf("\x1b[32m[INFO]💡You can choose: ");
+
+    if(lm_macro_type_get(macro) == LM_MACRO_NUMBER) {
+        printf("[%g ~ %g]", macro->range.min, macro->range.max);
+    }
+    else {
+        lm_array_print(stdout, &macro->choice);
+    }
+    printf("\x1b[0m\n");
 }
 
 
@@ -1472,7 +1613,7 @@ int lm_parser_lm_file(const char *base_path, const char *path)
 
         if(macro != NULL) {
             if(lm_parser_macro_set_prompt(macro, read_line) == LM_ERR) {
-                LM_LOG_ERROR("file: %s, lines: %d, invalid syntax", full_path, line_count);
+                LM_LOG_ERROR("file: %s:%d, %s", full_path, line_count, error_msg);
                 goto exit;
             }
 
@@ -1482,13 +1623,17 @@ int lm_parser_lm_file(const char *base_path, const char *path)
 
             lm_parser_err_e val_ret = lm_parser_macro_set_value(macro);
             if(val_ret == LM_PARSER_INVALID_VALUE) {
-                lm_parser_macro_help(macro, LM_PARSER_INVALID_VALUE);
+                lm_parser_macro_choice_helper(full_path, line_count, macro);
                 goto exit;
             }
             else if(val_ret == LM_PARSER_INVALID_DEPEND) {
-                lm_parser_macro_help(macro, LM_PARSER_INVALID_DEPEND);
+                goto syntax_err;
+            }
+            else if(val_ret == LM_PARSER_INVALID_MACRO) {
+                LM_LOG_ERROR("file: %s:%d, %s not found", full_path, line_count, error_msg);
                 goto exit;
             }
+
             continue;
         }
 
@@ -1523,13 +1668,13 @@ int lm_parser_lm_file(const char *base_path, const char *path)
     return LM_OK;
 
 syntax_err:
-    LM_LOG_ERROR("file: %s, lines: %d, invalid syntax", full_path, line_count);
+    LM_LOG_ERROR("file: %s:%d, invalid syntax", full_path, line_count);
     fclose(file_p); // close file
     lm_free(read_line);
     return LM_ERR;
 
 macro_err:
-    LM_LOG_ERROR("file: %s, lines: %d, missing 'choice' attribute", full_path, line_count);
+    LM_LOG_ERROR("file: %s:%d, missing 'choice' attribute", full_path, line_count);
     fclose(file_p); // close file
     lm_free(read_line);
     return LM_ERR;
