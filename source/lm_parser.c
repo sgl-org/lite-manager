@@ -1486,7 +1486,7 @@ static int lm_parser_macro_set_prompt(lm_macro_t *macro, char *read_line)
         return LM_OK;
     }
 
-    strcpy(error_msg, "invalid prompt, only support: choice, default, depend");
+    strcpy(error_msg, "invalid prompt, only support: choices, default, depends");
     return LM_ERR;
 }
 
