@@ -40,6 +40,7 @@ int lm_str_num_str_space(char* str);
 char* lm_str_get_quote(char* str);
 char* lm_str_pick_str(char* str, int index);
 char* lm_str_delete_space(char* str);
+void lm_str_delete_tail_space(char* str);
 char* lm_str_delete_head_tail_space(char* str);
 bool lm_str_head_is_four_space(char* str);
 bool lm_str_head_is_eight_space(char* str);

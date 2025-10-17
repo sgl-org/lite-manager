@@ -33,13 +33,13 @@
 #include "lm_cmd.h"
 
 
-#define    VERSION           "0.20250511"
+#define    VERSION           "0.20250709"
 
 
 static const char *makefile = NULL;
 static const char *pro_name = "demo";
 static const char *build_dir = "build";
-static const char *projcfg = "proj.cfg";
+static const char *projcfg = ".config";
 static const char *lmcfg = "lm.cfg";
 static const char *header_file = "config.h";
 static const char *lmmk_file = ".lm.mk";
@@ -50,8 +50,7 @@ static bool blind = false;
 
 static void show_flag_usage(char *flag, char *example)
 {
-    printf("    Example:\n");
-    printf("        %s += %s\n", flag, example);
+    printf("    \x1b[36mExample: %s += %s\x1b[0m \n", flag, example);
     printf("\n");
 }
 
@@ -73,7 +72,7 @@ static void show_key_usage(void)
 
     printf("    ASM:                   add asm source files\n");
     printf("    ASM-$(CONFIG_XXX):     add asm source files dependent on CONFIG_XXX\n");
-    show_flag_usage("ASM", "startup.S");
+    show_flag_usage("ASM", "startup.S  [Note: Must end with an uppercase .S letter]");
 
     printf("    LDS:                   add build link script file\n");
     printf("    LDS-$(CONFIG_XXX):     add build link script file dependent on CONFIG_XXX\n");
@@ -82,6 +81,10 @@ static void show_key_usage(void)
     printf("    ASFLAG:                add asm build flag\n");
     printf("    ASFLAG-$(CONFIG_XXX):  add asm build flag dependent on CONFIG_XXX\n");
     show_flag_usage("ASFLAG", "-mcpu=cortex-m3 -mthumb -g -gdwarf-2 -Wall");
+
+    printf("    MCFLAG:                add machine build flag\n");
+    printf("    MCFLAG-$(CONFIG_XXX):  add machine build flag dependent on CONFIG_XXX\n");
+    show_flag_usage("MCFLAG", "-mcpu=cortex-m3 -mthumb");
 
     printf("    CFLAG:                 add c build flag\n");
     printf("    CFLAG-$(CONFIG_XXX):   add c build flag dependent on CONFIG_XXX\n");
@@ -97,7 +100,7 @@ static void show_key_usage(void)
 
     printf("    LIB:                   add library\n");
     printf("    LIB-$(CONFIG_XXX):     add library dependent on CONFIG_XXX\n");
-    show_flag_usage("LIB", "sdl rt");
+    show_flag_usage("LIB", "sdl rt lc");
 
     printf("    LIBPATH:               add library path\n");
     printf("    LIBPATH-$(CONFIG_XXX): add library path dependent on CONFIG_XXX\n");
@@ -111,7 +114,7 @@ static void show_key_usage(void)
 
 static void show_help(char *app_name)
 {
-    printf("Usage: %s [options]\n", app_name);
+    printf("Usage: %s [options] ... [options]\n", app_name);
     printf("[options:]\n");
     printf("    --help                                Display this help message\n");
     printf("    --flag                                Display this help detail message\n");
@@ -128,7 +131,8 @@ static void show_help(char *app_name)
     printf("    --build                               Generate Makefile: build directory, default: build\n");
     printf("    --prefix                              Generate Makefile: cross compiler prefix\n");
     printf("\n");
-    printf("    --rmdir                               Delete directory\n");
+    printf("    --rm                                  Delete directory or file\n");
+    printf("    --cp                                  Copy file\n");
 }
 
 
@@ -149,12 +153,13 @@ static struct option cmd_long_options[] =
     {"build",     required_argument,       NULL, 'l'},
     {"prefix",    required_argument,       NULL, 'm'},
 
-    {"rmdir",     required_argument,       NULL, 'n'},
+    {"rm",        required_argument,       NULL, 'n'},
+    {"cp",        required_argument,       NULL, 'o'},
     {NULL,        0,                       NULL,  0},
 };
 
 
-static const char *shortopts = "abcd:e:f:g:h:i:j:k:l:";
+static const char *shortopts = "abcd:e:f:g:h:i:j:k:l:m:n:o";
 
 
 int main(int argc, char *argv[])
@@ -162,10 +167,15 @@ int main(int argc, char *argv[])
     int ret;
     int opt;
 
+    if(argc == 1) {
+        show_help(argv[0]);
+        exit(0);
+    }
+
     while ((opt = getopt_long (argc, argv, shortopts, cmd_long_options, NULL)) != -1) {
         switch (opt) {
             case 'a':
-                show_help(argv[0]);
+                show_help("lm.exe");
                 exit(0);
                 break;
             case 'b':
@@ -208,15 +218,19 @@ int main(int argc, char *argv[])
                 gcc_prefix = optarg;
                 break;
             case 'n':
-                lm_rmdir(optarg);
-                exit(0);
+                ret = lm_rm(optarg);
+                exit(ret);
+                break;
+            case 'o':
+                ret = lm_copy_file(optarg, argv[optind]);
+                exit(ret);
                 break;
             case '?':
-                printf("Unknown option: %c\n", optopt);
+                LM_LOG_ERROR("Unknown option: %c\n", optopt);
                 exit(1);
                 break;
             default:
-                printf("Unknown option: %c\n", optopt);
+                LM_LOG_ERROR("Unknown option: %c\n", optopt);
                 exit(1);
                 break;
         }

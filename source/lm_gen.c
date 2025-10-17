@@ -285,12 +285,12 @@ int lm_gen_mkfile_file(const char *makefile, const char *lmmk, const char *lmcfg
     fprintf(file, "# Check if the %s file exists\n", projcfg);
     fprintf(file, "config: %s\n", projcfg);
     fprintf(file, "\t@./lm.exe --projcfg %s --lmcfg %s --out %s --mem 50\n", projcfg, lmcfg, header_file);
-    fprintf(file, "\t@./lm.exe --rmdir $(BUILD_DIR)\n");
+    fprintf(file, "\t@./lm.exe --rm $(BUILD_DIR)\n");
     fprintf(file, "\n\n");
 
     fprintf(file, "# clean command, delete build directory\n");
     fprintf(file, "clean:\n");
-    fprintf(file, "\t@./lm.exe --rmdir $(BUILD_DIR)\n");
+    fprintf(file, "\t@./lm.exe --rm $(BUILD_DIR)\n");
     fprintf(file, "\n");
 
     fclose(file);

@@ -306,6 +306,16 @@ char* lm_str_delete_space(char* str)
 }
 
 
+void lm_str_delete_tail_space(char* str)
+{
+    char *p = &str[strlen(str) - 1];
+    while(*p == ' ' && p >= str) {
+        *p = '\0';
+        p--;
+    };
+}
+
+
 char* lm_str_delete_head_tail_space(char* str)
 {
     char* tmp = (char*)lm_malloc(strlen(str) + 1);

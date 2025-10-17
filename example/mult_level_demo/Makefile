@@ -1,18 +1,15 @@
-TARGET    := lm
+TARGET    := demo
 BUILD_DIR := build
 
 
-CONFIG_DEBUG = y
-CONFIG_LOG_LEVEL = 0
-CONFIG_MEM_POOL_SIZE = 20
-CONFIG_MACRO_CACHE_SIZE = 100
-
-# Variables provided for Makefile
-C_SOURCE := lm_macro.c lm_mem.c lm_parser.c lm_string.c lm_array.c lm_log.c lm_gen.c lm_cmd.c main.c heap_tlsf.c
-
-C_PATH := -I.
-
-C_FLAG := -O2 -Wl,-Bstatic -ffunction-sections -fdata-sections -nostdlib -ffreestanding -Wunused-function -Wall -Wextra -Werror -std=c99
+# include configuration file for makefile
+.PHONY: check_lmmk
+ifneq ($(wildcard .lm.mk),)
+-include .lm.mk
+else
+check_lmmk:
+	@echo "Please run 'make config'"
+endif
 
 
 # toolchain
@@ -26,8 +23,9 @@ HEX = $(CP) -O ihex
 BIN = $(CP) -O binary -S
 
 
-CFLAGS    := $(C_PATH) $(C_DEFINE) $(C_FLAG) $(CPP_FLAG)
-LDFLAGS   := $(LD_FLAG) $(LIB_PATH)
+CFLAGS    := $(MC_FLAG) $(C_PATH) $(C_DEFINE) $(C_FLAG) $(CPP_FLAG)
+ASFLAGS   := $(MC_FLAG) $(C_PATH) $(C_DEFINE) $(AS_FLAG) 
+LDFLAGS   := $(MC_FLAG) $(LD_FLAG) $(LIB_PATH) $(LIB_NAME) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map
 
 
 .PHONY: all
@@ -57,7 +55,7 @@ $(BUILD_DIR)/%.o: %.cpp Makefile | $(BUILD_DIR)
 
 $(BUILD_DIR)/%.o: %.S Makefile | $(BUILD_DIR)
 	@echo "AS   $<"
-	@$(AS) -c $(CFLAGS) -MMD -MP  \
+	@$(AS) -c $(ASFLAGS) -MMD -MP  \
 		-MF $(BUILD_DIR)/$(notdir $(<:.S=.d)) $< -o $@
 
 
@@ -68,7 +66,6 @@ $(BUILD_DIR)/$(TARGET).exe: $(OBJECTS) Makefile
 	@echo ''
 	@echo "Build Successful!"
 	@echo "ELF   $@"
-	@cp $@ .
 
 
 elf_info: $(BUILD_DIR)/$(TARGET).exe
@@ -85,11 +82,12 @@ $(BUILD_DIR):
 .PHONY: config clean
 
 # Check if the proj.cfg file exists
-config: .config
-	@./lm.exe --projcfg .config --lmcfg lm.cfg --out config.h --mk .lm.mk --mem 50
-	@./lm.exe --rm $(BUILD_DIR)
+config: proj.cfg
+	@./lm.exe --projcfg proj.cfg --lmcfg lm.cfg --out config.h --mem 50
+	@./lm.exe --rmdir $(BUILD_DIR)
 
 
 # clean command, delete build directory
 clean:
-	@./lm.exe --rm $(BUILD_DIR)
+	@./lm.exe --rmdir $(BUILD_DIR)
+

@@ -1,5 +1,5 @@
 ![lite-config](./lm.gif)
-## 什么是lite-manager？
+## 什么是lite-manager？(申明式C项目管理工具)
 #### lite-manager是一个宏配置和管理工具，自动解决C语言项目中宏依赖的问题。 
 
 1. 你是否讨厌过Cmake的管理十分繁杂，并且效率低下？
@@ -42,9 +42,13 @@ CONFIG_MACRO_A
 CONFIG_MACRO_B
     choices = [0, 100]
     depends = !CONFIG_MACRO_A
+
+CONFIG_PLATFORM
+    choices = windows, linux, mac, unix
+    default = linux
 ```
 上面的`CONFIG_MACRO_A`可选择的值为`0, 1, 2, 3`这四个值，`CONFIG_MACRO_B`可选择的值为0~100，这个宏与`CONFIG_MACRO_A`互斥，也就是只有`CONFIG_MACRO_A`关闭时，`CONFIG_MACRO_B`才可被开启。   
-对于上面的宏的值，具体设置需要添加`proj.cfg`文件，该文件类似于Linux中的.config配置文件，这个配置文件将会设置所有宏的值，如果某些值未设置，则会使用`choices`中第一个值作为缺损值。例如下面`proj.cfg`：
+对于上面的宏的值，具体设置需要添加`.config`文件，该文件类似于Linux中的`.config`配置文件，这个配置文件将会设置所有宏的值，如果某些值未设置，则会使用`choices`中第一个值作为缺损值。例如下面`.config`：
 ```C
 COMPILER = gcc
 CONFIG_DEBUG = y
@@ -125,7 +129,7 @@ lite-manager key: [option] += [value] [value] ...
 `SRC`用于添加C/C++源文件，例如`SRC  += abc.c`   
 `PATH`用于添加头文件路径，例如`PATH += ./`表示将当前的目录添加到编译的头文件查找路径中   
 `DEFINE`用于添加全局宏，例如`DEFINE += STM32F10X_HD`表示编译的时候会添加全局宏到编译选项中   
-`ASM`用于添加汇编源文件，例如`ASM += boot.s`   
+`ASM`用于添加汇编源文件，例如`ASM += boot.S`   
 `LDS`用于添加编译的链接脚本，例如`LDS += stm32f10x_64KB_flash.ld`   
 `MCFLAG`用于添加与机器相关的编译选项    
 `ASFLAG`用于添加汇编的编译选项  
